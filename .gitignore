@@ -1,0 +1,25 @@
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Environment
+.env
+.env.local
+
+# SQLite temporary files
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db

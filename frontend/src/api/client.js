@@ -1,4 +1,7 @@
-const BASE_URL = '/api';
+const ENV_API_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = ENV_API_URL
+  ? (ENV_API_URL.endsWith('/api') ? ENV_API_URL.replace(/\/$/, '') : `${ENV_API_URL.replace(/\/$/, '')}/api`)
+  : '/api';
 
 export async function fetchDashboard() {
   const res = await fetch(`${BASE_URL}/dashboard`);
