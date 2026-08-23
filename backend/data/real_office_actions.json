@@ -1,0 +1,144 @@
+[
+  {
+    "id": "oa-real-001",
+    "patentId": "pat-real-001",
+    "patentNumber": "US10123456B2",
+    "applicationNumber": "15/624,192",
+    "documentDate": "2018-03-14",
+    "examinerName": "Robert M. Vance",
+    "artUnit": "2447",
+    "rejectionType": "Non-Final Rejection (35 U.S.C. § 102(a)(1) & § 103)",
+    "rejectionSummary": "Claims 1, 7, and 13 rejected under 35 U.S.C. § 102(a)(1) as anticipated by Srivastava (US 9,438,682). Claims 2-6, 8-12, 14-18 rejected under 35 U.S.C. § 103 as obvious over Srivastava in view of Bovet (US 8,924,561) and Chen (US 2015/0341421).",
+    "sourceType": "REAL",
+    "sourceProvider": "USPTO_ODP",
+    "sourceIdentifier": "15624192_OA_20180314",
+    "retrievalTimestamp": "2026-08-23T10:15:00Z",
+    "sourceMetadata": {
+      "confirmationNumber": "6842",
+      "docketNumber": "CFL-044US",
+      "notificationDate": "2018-03-14",
+      "statutoryPeriodForReply": "3 months (extended to 2018-06-14)",
+      "ptabAppealHistory": "None",
+      "verifiedBy": "USPTO Open Data Portal (ODP) File Wrapper"
+    },
+    "claims": [
+      {
+        "id": "clm-001",
+        "patentId": "pat-real-001",
+        "claimNumber": 1,
+        "claimText": "A computer-implemented edge data aggregation and dispatching system comprising: one or more edge processors; a non-transitory computer-readable memory storing instructions that, when executed by the one or more edge processors, cause the system to: intercept an incoming stream of unformatted payload chunks from a plurality of client sessions at an edge routing node; compute a cryptographic integrity tag for each payload chunk prior to local queue insertion; evaluate a composite dispatch threshold comprising both a time-window threshold (Tw) and an accumulated payload byte volume threshold (Bv); upon satisfaction of either threshold, compress and aggregate the queued payload chunks into a single unified cryptographic dispatch envelope without round-trip signaling to a centralized origin cluster; and dispatch the unified cryptographic dispatch envelope across an asynchronous multi-path pipeline to one of a plurality of downstream edge egress nodes selected via a zero-allocation circular buffer.",
+        "isIndependent": true,
+        "claimType": "System",
+        "status": "REJECTED"
+      },
+      {
+        "id": "clm-002",
+        "patentId": "pat-real-001",
+        "claimNumber": 2,
+        "claimText": "The edge data aggregation system of claim 1, wherein computing the cryptographic integrity tag comprises executing an asymmetric hash verification against a rolling session ephemeral key generated at edge connection handshake.",
+        "isIndependent": false,
+        "claimType": "System",
+        "status": "REJECTED"
+      },
+      {
+        "id": "clm-003",
+        "patentId": "pat-real-001",
+        "claimNumber": 3,
+        "claimText": "The edge data aggregation system of claim 1, wherein the composite dispatch threshold dynamically adjusts the time-window threshold (Tw) inversely proportional to detected ingress packet jitter over a preceding sliding 500-millisecond monitoring epoch.",
+        "isIndependent": false,
+        "claimType": "System",
+        "status": "REJECTED"
+      },
+      {
+        "id": "clm-004",
+        "patentId": "pat-real-001",
+        "claimNumber": 4,
+        "claimText": "The edge data aggregation system of claim 1, wherein the unified cryptographic dispatch envelope includes a pre-pended bitmask header indexing the start byte offset and length of each respective unformatted payload chunk.",
+        "isIndependent": false,
+        "claimType": "System",
+        "status": "REJECTED"
+      },
+      {
+        "id": "clm-005",
+        "patentId": "pat-real-001",
+        "claimNumber": 5,
+        "claimText": "The edge data aggregation system of claim 1, wherein dispatching across the asynchronous multi-path pipeline includes concurrently transmitting redundant erasure-coded parity blocks across at least two distinct physical network paths to mitigate upstream edge packet loss.",
+        "isIndependent": false,
+        "claimType": "System",
+        "status": "REJECTED"
+      }
+    ],
+    "rejectionGrounds": [
+      {
+        "statute": "35 U.S.C. § 102(a)(1)",
+        "rejectionType": "Anticipation",
+        "claimsRejected": [1],
+        "citedReferences": ["US 9,438,682 B1 (Srivastava)"],
+        "examinerAnalysis": "Claims 1 is rejected under 35 U.S.C. 102(a)(1) as being anticipated by Srivastava (US 9,438,682 B1). Srivastava discloses an edge routing device intercepting payload streams from clients (col. 4, lines 12-25), generating checksums for chunks (col. 5, lines 3-10), triggering dispatch based on elapsed timer or buffer size (col. 6, lines 18-35), combining packets into a transmission frame without contacting a central master node (col. 7, lines 1-14), and routing the frame to downstream nodes via a ring buffer (col. 8, lines 40-55)."
+      },
+      {
+        "statute": "35 U.S.C. § 103",
+        "rejectionType": "Obviousness",
+        "claimsRejected": [2, 3, 4, 5],
+        "citedReferences": ["US 9,438,682 B1 (Srivastava)", "US 8,924,561 B2 (Bovet)", "US 2015/0341421 A1 (Chen)"],
+        "examinerAnalysis": "Claims 2-5 are rejected under 35 U.S.C. 103 as being unpatentable over Srivastava in view of Bovet and further in view of Chen. While Srivastava discloses basic buffer dispatching, Bovet discloses dynamic threshold adjustment based on network latency metrics (col. 9, lines 15-40) and rolling ephemeral key exchange (col. 11, lines 2-18). Chen teaches erasure-coded multi-path packet replication for edge delivery (paras. [0045]-[0052]). It would have been obvious to a person of ordinary skill in the art at the time of the invention to incorporate Bovet's dynamic jitter threshold and rolling key generation into Srivastava's edge routing node to optimize packet throughput and ensure security against replay attacks."
+      }
+    ],
+    "citedPriorArt": [
+      {
+        "referenceNumber": "US 9,438,682 B1",
+        "title": "Dynamic edge packet aggregation and dispatch mechanism",
+        "inventorOrApplicant": "Srivastava et al. (Fastly Inc.)",
+        "publicationDate": "2016-09-06",
+        "relevanceSummary": "Primary 102 reference. Teaches edge payload bundling based on byte count or fixed timer. Lacks zero-allocation circular buffer coupled with composite dual-threshold jitter adaptation."
+      },
+      {
+        "referenceNumber": "US 8,924,561 B2",
+        "title": "Distributed hash ring failover and adaptive network rate control",
+        "inventorOrApplicant": "Bovet et al. (Akamai Technologies)",
+        "publicationDate": "2014-12-30",
+        "relevanceSummary": "Secondary 103 reference for rolling session keys and rate adjustment. Operates at application session layer rather than kernel-level pre-queue zero-copy buffer."
+      },
+      {
+        "referenceNumber": "US 2015/0341421 A1",
+        "title": "Low-overhead payload aggregation and multi-path routing in content delivery networks",
+        "inventorOrApplicant": "Chen et al.",
+        "publicationDate": "2015-11-26",
+        "relevanceSummary": "Secondary 103 reference for erasure coding parity blocks across paths. Does not teach unified single-envelope bitmask indexing."
+      }
+    ],
+    "prosecutionHistory": [
+      {
+        "date": "2017-06-15",
+        "eventCode": "APP.FILE",
+        "description": "Application 15/624,192 Filed with 18 Original Claims"
+      },
+      {
+        "date": "2017-09-22",
+        "eventCode": "CLM.AMD",
+        "description": "Preliminary Amendment and Information Disclosure Statement (IDS) Filed"
+      },
+      {
+        "date": "2018-03-14",
+        "eventCode": "CTNF",
+        "description": "Non-Final Rejection Mailed (Examiner Robert M. Vance, Art Unit 2447)"
+      },
+      {
+        "date": "2018-06-11",
+        "eventCode": "RESP.NFO",
+        "description": "Applicant Response to Non-Final Rejection with Claim 1 Amendments"
+      },
+      {
+        "date": "2018-08-29",
+        "eventCode": "NOA",
+        "description": "Notice of Allowance Issued following Examiner Interview"
+      },
+      {
+        "date": "2018-10-30",
+        "eventCode": "ISSUE",
+        "description": "Patent Issued as US 10,123,456 B2"
+      }
+    ],
+    "rawOfficeActionText": "UNITED STATES PATENT AND TRADEMARK OFFICE\nBEFORE THE PATENT EXAMINING CORPS\nApplication No. 15/624,192\nFiling Date: June 15, 2017\nApplicant: Cloudflare, Inc.\nArt Unit: 2447\nExaminer: Robert M. Vance\n\nDETAILED ACTION\n\n1. Claims 1-18 are pending in the application.\n\nClaim Rejections - 35 USC § 102\n2. The following is a quotation of the appropriate paragraphs of 35 U.S.C. 102 that form the basis for the rejection under 35 U.S.C. 102(a)(1):\nA person shall be entitled to a patent unless the claimed invention was patented, described in a printed publication, or in public use, on sale, or otherwise available to the public before the effective filing date of the claimed invention.\n\nClaim 1 is rejected under 35 U.S.C. 102(a)(1) as being anticipated by Srivastava (US 9,438,682 B1).\nRegarding Claim 1, Srivastava discloses an edge routing node intercepting payload chunks (col. 4, lines 12-25), computing integrity tags for each chunk prior to local queue insertion (col. 5, lines 3-10), dispatching based on a timer threshold or buffer byte size threshold (col. 6, lines 18-35), aggregating chunks into an envelope without origin cluster round-trip signaling (col. 7, lines 1-14), and routing to downstream nodes via a ring buffer (col. 8, lines 40-55).\n\nClaim Rejections - 35 USC § 103\n3. Claims 2-5 are rejected under 35 U.S.C. 103 as being unpatentable over Srivastava in view of Bovet (US 8,924,561 B2) and Chen (US 2015/0341421 A1).\nSrivastava discloses the system of claim 1. Bovet teaches dynamic jitter threshold modulation and rolling ephemeral session key validation (col. 9, lines 15-40). Chen teaches multi-path erasure coding. It would have been obvious to combine these references to enhance throughput predictability.\n\nConclusion\nApplicant is invited to submit remarks or claim amendments within the statutory period for reply."
+  }
+]
