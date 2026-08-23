@@ -12,6 +12,3 @@ dependencies = [
     "anthropic>=0.34.0",
     "python-dotenv>=1.0.1",
 ]
-
-[tool.vercel]
-entrypoint = "backend.main:app"
