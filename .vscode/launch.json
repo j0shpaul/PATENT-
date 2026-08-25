@@ -5,7 +5,7 @@
       "name": "Debug PATENT+",
       "type": "msedge",
       "request": "launch",
-      "url": "https://staging.rocketride.ai:443/?appid=local.patentplus&rrdev=1",
+      "url": "https://staging.rocketride.ai:443/?appid=doodhroti_wins.patentplus&rrdev=1",
       "webRoot": "${workspaceFolder}/apps/patentplus-ui",
       "sourceMapPathOverrides": {
         "webpack:///./*": "${workspaceFolder}/apps/patentplus-ui/*",

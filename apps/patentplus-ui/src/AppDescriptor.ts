@@ -19,7 +19,7 @@ import type { AppDescriptor } from 'shell';
 import App from './App';
 
 const descriptor: AppDescriptor = {
-	id: 'local.patentplus',
+	id: 'doodhroti_wins.patentplus',
 	name: 'PATENT+',
 	branding: { appName: 'PATENT+' },
 	app: App,

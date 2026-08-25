@@ -64,7 +64,16 @@ export default defineConfig(() => ({
 	// CORS: explicitly allow any origin — the serving host isn't fixed, so no
 	// allowlist is possible; declaring it also stops the MF plugin injecting
 	// its own wildcard defaults (and warning about it).
-	server: { port: 3804, cors: { origin: '*' } },
+	server: {
+		port: 3388,
+		cors: { origin: '*' },
+		proxy: {
+			'/api': {
+				target: 'http://127.0.0.1:8000',
+				changeOrigin: true,
+			},
+		},
+	},
 	// hmr on; liveReload stays at its DEFAULT (true): a failed hot update
 	// that rejects check() falls back to a full reload of the preview page.
 	// (The historic reload loop came from zombie multi-container HMR clients,
@@ -78,6 +87,20 @@ export default defineConfig(() => ({
 	// is rsbuild's runtime placeholder for the ACTUAL port, so dynamic port
 	// assignment keeps working.
 	dev: { hmr: true, lazyCompilation: false, client: { protocol: 'ws', host: 'localhost', port: '<port>' } as const },
-	source: { entry: { index: './src/index.ts' } },
+	source: {
+		entry: { index: './src/index.ts' },
+		define: {
+			'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:8000/api'),
+		},
+	},
+	resolve: {
+		alias: {
+			'@patentplus': path.resolve(__dirname, '../../frontend/src'),
+			'react': path.resolve(__dirname, 'node_modules/react'),
+			'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+			'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+			'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime'),
+		},
+	},
 	output: { assetPrefix: 'auto' },
 }));

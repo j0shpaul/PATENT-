@@ -1,12 +1,12 @@
 {
-  "name": "local-patentplus",
+  "name": "doodhroti_wins-patentplus",
   "version": "0.1.0",
   "private": true,
   "description": "PATENT+ — a RocketRide app",
   "license": "MIT",
   "appManifest": {
-    "id": "local.patentplus",
-    "publisher": "local",
+    "id": "doodhroti_wins.patentplus",
+    "publisher": "doodhroti_wins",
     "name": "PATENT+",
     "description": "PATENT+ — a RocketRide app",
     "icon": "./icon.svg",
@@ -16,7 +16,7 @@
     ],
     "mode": "free",
     "authenticated": false,
-    "projectId": "fdaf67a8-d647-4e2a-b5c2-0abddec4a248"
+    "projectId": "bb840c1b-e295-4407-8f7c-6de498adf339"
   },
   "scripts": {
     "dev": "rsbuild dev",

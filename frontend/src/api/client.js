@@ -13,9 +13,22 @@ import {
 } from './mockService';
 
 const ENV_API_URL = import.meta.env.VITE_API_URL;
-const BASE_URL = ENV_API_URL
-  ? (ENV_API_URL.endsWith('/api') ? ENV_API_URL.replace(/\/$/, '') : `${ENV_API_URL.replace(/\/$/, '')}/api`)
-  : '/api';
+const getBaseUrl = () => {
+  if (ENV_API_URL) {
+    return ENV_API_URL.endsWith('/api') ? ENV_API_URL.replace(/\/$/, '') : `${ENV_API_URL.replace(/\/$/, '')}/api`;
+  }
+  if (typeof window !== 'undefined') {
+    // If running in standalone vite dev with proxy on port 5173
+    if (window.location.port === '5173') {
+      return '/api';
+    }
+    // If running in RocketRide remote preview (staging.rocketride.ai or port 3388)
+    return 'http://localhost:8000/api';
+  }
+  return 'http://localhost:8000/api';
+};
+
+const BASE_URL = getBaseUrl();
 
 export async function fetchDashboard() {
   try {

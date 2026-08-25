@@ -1,8 +1,9 @@
 # Node
 node_modules/
-frontend/node_modules/
+**/node_modules/
 dist/
-frontend/dist/
+**/dist/
+
 
 # Python
 __pycache__/

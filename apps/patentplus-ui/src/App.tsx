@@ -7,40 +7,115 @@
  * PATENT+ — root component rendered by the RocketRide shell.
  */
 
-import React from 'react';
+import React, { Component, ReactNode, ErrorInfo } from 'react';
 import type { ShellAppProps } from 'shell';
 import { AppLayout } from 'shell';
+// @ts-ignore - Clean alias to the existing Patent+ root JSX application
+import PatentPlusApp from '@patentplus/App';
+import '@patentplus/index.css';
 
-// =============================================================================
-// STYLES
-// =============================================================================
+interface ErrorBoundaryProps {
+	children: ReactNode;
+}
 
-const styles: Record<string, React.CSSProperties> = {
-	wrap: { padding: 40, fontFamily: 'var(--rr-font-family, system-ui)' },
-	title: { fontSize: 22, fontWeight: 600, color: 'var(--rr-text-primary)' },
-	sub: { marginTop: 8, fontSize: 13, color: 'var(--rr-text-secondary)' },
-};
+interface ErrorBoundaryState {
+	hasError: boolean;
+	error: Error | null;
+}
 
-// =============================================================================
-// COMPONENT
-// =============================================================================
+class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+	constructor(props: ErrorBoundaryProps) {
+		super(props);
+		this.state = { hasError: false, error: null };
+	}
 
-/** Client-area content — replace with your app. */
-const Content: React.FC<ShellAppProps> = ({ isConnected, identity }) => (
-	<div style={styles.wrap}>
-		<h1 style={styles.title}>PATENT+</h1>
-		<p style={styles.sub}>Edit src/App.tsx and save — the preview reloads automatically.</p>
-		<p style={styles.sub}>Connected: {isConnected ? 'yes' : 'no'} · User: {identity?.displayName ?? 'not signed in'}</p>
-	</div>
-);
+	static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+		return { hasError: true, error };
+	}
+
+	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+		console.error('[PATENT+ Shell] Uncaught error inside application boundary:', error, errorInfo);
+	}
+
+	handleReset = () => {
+		this.setState({ hasError: false, error: null });
+	};
+
+	render() {
+		if (this.state.hasError) {
+			return (
+				<div
+					style={{
+						display: 'flex',
+						flexDirection: 'column',
+						alignItems: 'center',
+						justifyContent: 'center',
+						height: '100%',
+						minHeight: '400px',
+						backgroundColor: '#050706',
+						color: '#F2F7F4',
+						fontFamily: "'JetBrains Mono', monospace",
+						padding: '32px',
+						textAlign: 'center',
+					}}
+				>
+					<div
+						style={{
+							fontSize: '11px',
+							letterSpacing: '0.12em',
+							color: '#FF6B5C',
+							marginBottom: '8px',
+							fontWeight: 700,
+						}}
+					>
+						[PATENT+ ENGINE RECOVERY]
+					</div>
+					<h2 style={{ fontSize: '18px', margin: '0 0 12px', fontWeight: 600 }}>
+						Application Encountered an Exception
+					</h2>
+					<p
+						style={{
+							fontSize: '12px',
+							color: '#9EABA5',
+							maxWidth: '480px',
+							margin: '0 0 24px',
+							lineHeight: 1.6,
+						}}
+					>
+						{this.state.error?.message || 'An unexpected rendering error occurred inside the view tree.'}
+					</p>
+					<button
+						onClick={this.handleReset}
+						style={{
+							padding: '8px 18px',
+							background: '#2DD4A7',
+							border: 'none',
+							borderRadius: '4px',
+							color: '#050706',
+							fontFamily: "'JetBrains Mono', monospace",
+							fontWeight: 700,
+							fontSize: '11px',
+							cursor: 'pointer',
+							letterSpacing: '0.06em',
+						}}
+					>
+						RELOAD INTERFACE
+					</button>
+				</div>
+			);
+		}
+		return this.props.children;
+	}
+}
 
 /**
- * Root view — AppLayout declares the frame the wizard selected; recompose
- * its props (`sidebar`, `showStatus`) to change it.
+ * Root view — renders the existing Patent+ application inside RocketRide's AppLayout.
  */
-const App: React.FC<ShellAppProps> = (props) => (
+const App: React.FC<ShellAppProps> = (_props) => (
 	<AppLayout>
-		<Content {...props} />
+		<AppErrorBoundary>
+			<PatentPlusApp />
+		</AppErrorBoundary>
 	</AppLayout>
 );
 
