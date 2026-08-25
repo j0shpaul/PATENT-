@@ -8,7 +8,8 @@ import {
   mockFetchOfficeActions,
   mockFetchOfficeAction,
   mockGenerateOfficeActionDraft,
-  mockFetchSystemStatus
+  mockFetchSystemStatus,
+  mockResetDemoDataset
 } from './mockService';
 
 const ENV_API_URL = import.meta.env.VITE_API_URL;
@@ -80,21 +81,16 @@ export async function fetchDecisions() {
 }
 
 export async function submitDecision(data) {
-  try {
-    const res = await fetch(`${BASE_URL}/decisions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Decision submission failed: ${res.statusText}`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.warn('[PATENT+ Demo Mode] Using fallback mock submit decision:', err.message);
-    return mockSubmitDecision(data);
+  const res = await fetch(`${BASE_URL}/decisions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Decision submission failed: ${res.statusText} (${res.status})`);
   }
+  return await res.json();
 }
 
 export async function fetchOfficeActions() {
@@ -143,6 +139,28 @@ export async function fetchSystemStatus() {
   } catch (err) {
     console.warn('[PATENT+ Demo Mode] Using fallback mock system status:', err.message);
     return mockFetchSystemStatus();
+  }
+}
+
+export async function resetDemoDataset() {
+  try {
+    const res = await fetch(`${BASE_URL}/system/reset-demo`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Reset demo dataset failed: ${res.statusText}`);
+    }
+    // Clean any local fallback storage
+    try {
+      localStorage.removeItem('patent_plus_demo_patents');
+      localStorage.removeItem('patent_plus_demo_decisions');
+      localStorage.removeItem('patent_plus_demo_oa');
+    } catch (_) {}
+    return await res.json();
+  } catch (err) {
+    console.warn('[PATENT+ Demo Mode] Using fallback mock reset:', err.message);
+    return mockResetDemoDataset();
   }
 }
 

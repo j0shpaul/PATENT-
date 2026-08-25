@@ -13,7 +13,7 @@ logger = logging.getLogger("patent_plus.routes.decisions")
 async def list_decisions():
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM decision_log ORDER BY timestamp DESC;")
+        cursor.execute("SELECT * FROM decision_log ORDER BY timestamp DESC, id DESC;")
         rows = cursor.fetchall()
         return [
             {

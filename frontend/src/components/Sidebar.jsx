@@ -4,114 +4,57 @@ export default function Sidebar({
   activeTab,
   onTabChange,
   counts = {},
-  systemStatus = {}
+  systemStatus
 }) {
-  const getUsptoStatus = () => {
-    const s = systemStatus?.uspto;
-    if (s === 'LIVE') return { label: 'LIVE', class: 'connected' };
-    return { label: 'CACHED', class: 'cached' };
-  };
-
-  const getEpoStatus = () => {
-    const s = systemStatus?.epo;
-    if (s === 'LIVE') return { label: 'LIVE', class: 'connected' };
-    return { label: 'CACHED', class: 'cached' };
-  };
-
-  const getAiStatus = () => {
-    const s = systemStatus?.ai;
-    if (s === 'ANTHROPIC AI') return { label: 'CLAUDE', class: 'connected' };
-    return { label: 'LOCAL', class: 'local' };
-  };
-
-  const uspto = getUsptoStatus();
-  const epo = getEpoStatus();
-  const ai = getAiStatus();
+  const navItems = [
+    { id: 'command', label: 'COMMAND', badge: counts.attentionCount > 0 ? `${counts.attentionCount}` : null, badgeClass: 'urgent' },
+    { id: 'portfolio', label: 'PORTFOLIO', badge: `${counts.activePatents || 247}` },
+    { id: 'office-actions', label: 'OFFICE ACTIONS', badge: counts.officeActionsCount ? `${counts.officeActionsCount}` : null },
+    { id: 'decisions', label: 'DECISIONS', badge: counts.decisionsCount > 0 ? `${counts.decisionsCount}` : null },
+    { id: 'system', label: 'SYSTEM' }
+  ];
 
   return (
-    <aside className="sidebar-panel">
+    <aside className="cinematic-sidebar">
       <div className="sidebar-top">
         {/* Brand */}
-        <div className="sidebar-brand">
-          <span className="sidebar-brand-title">PATENT+</span>
-          <span className="sidebar-brand-subtitle">portfolio intelligence</span>
+        <div className="sidebar-brand-block" onClick={() => onTabChange('command')}>
+          <div className="brand-symbol">◈</div>
+          <div className="brand-text">
+            <span className="brand-name">PATENT+</span>
+            <span className="brand-sub">INTELLIGENCE</span>
+          </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="sidebar-nav">
-          <button
-            className={`sidebar-nav-item ${activeTab === 'portfolio' ? 'active' : ''}`}
-            onClick={() => onTabChange('portfolio')}
-          >
-            <div className="sidebar-nav-label">
-              <span className="sidebar-nav-dot">{activeTab === 'portfolio' ? '◉' : '◌'}</span>
-              <span>Portfolio</span>
-            </div>
-            {counts.activePatents !== undefined && (
-              <span className="sidebar-nav-count">{counts.activePatents}</span>
-            )}
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeTab === 'decisions' ? 'active' : ''}`}
-            onClick={() => onTabChange('decisions')}
-          >
-            <div className="sidebar-nav-label">
-              <span className="sidebar-nav-dot">{activeTab === 'decisions' ? '◉' : '◌'}</span>
-              <span>Decisions</span>
-            </div>
-            {counts.decisionsCount !== undefined && counts.decisionsCount > 0 && (
-              <span className="sidebar-nav-count">{counts.decisionsCount}</span>
-            )}
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeTab === 'office-actions' ? 'active' : ''}`}
-            onClick={() => onTabChange('office-actions')}
-          >
-            <div className="sidebar-nav-label">
-              <span className="sidebar-nav-dot">{activeTab === 'office-actions' ? '◉' : '◌'}</span>
-              <span>Office Actions</span>
-            </div>
-            {counts.officeActionsCount !== undefined && (
-              <span className="sidebar-nav-count">{counts.officeActionsCount}</span>
-            )}
-          </button>
+        {/* Minimal Navigation */}
+        <nav className="sidebar-nav-list">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
+                onClick={() => onTabChange(item.id)}
+              >
+                <span className="nav-btn-label">{item.label}</span>
+                {item.badge && (
+                  <span className={`nav-btn-badge ${item.badgeClass || ''}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
       </div>
 
-      {/* System Diagnostics Panel */}
-      <div className="sidebar-system-card">
-        <div className="sidebar-system-title">SYSTEM STATUS</div>
-        <div className="system-status-list">
-          <div className="system-status-row">
-            <span className="system-status-name">USPTO</span>
-            <span className={`system-status-val ${uspto.class}`}>
-              <span className="pulse-dot" /> {uspto.label}
-            </span>
-          </div>
-
-          <div className="system-status-row">
-            <span className="system-status-name">EPO</span>
-            <span className={`system-status-val ${epo.class}`}>
-              <span className="pulse-dot" /> {epo.label}
-            </span>
-          </div>
-
-          <div className="system-status-row">
-            <span className="system-status-name">AI ENGINE</span>
-            <span className={`system-status-val ${ai.class}`}>
-              <span className="pulse-dot" /> {ai.label}
-            </span>
-          </div>
-
-          <div className="system-status-row">
-            <span className="system-status-name">DATABASE</span>
-            <span className="system-status-val connected">
-              <span className="pulse-dot" /> READY
-            </span>
-          </div>
+      {/* Minimal Footer System Status Indicator */}
+      <div className="sidebar-footer-diagnostic" onClick={() => onTabChange('system')}>
+        <div className="diag-pulse-line">
+          <span className="pulse-dot" />
+          <span className="diag-engine-name">SQLITE · ACTIVE</span>
         </div>
+        <span className="diag-link-arrow">SYSTEM →</span>
       </div>
     </aside>
   );

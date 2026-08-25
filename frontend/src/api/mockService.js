@@ -150,7 +150,7 @@ export function mockFetchPatents(params = {}) {
 
     if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
     if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
+    return (a.patentNumber || '').localeCompare(b.patentNumber || '');
   });
 
   const total = list.length;
@@ -357,5 +357,18 @@ export function mockFetchSystemStatus() {
       REAL: realCount,
       SYNTHETIC: syntheticCount
     }
+  };
+}
+
+export function mockResetDemoDataset() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_PATENTS);
+    localStorage.removeItem(STORAGE_KEY_DECISIONS);
+    localStorage.removeItem(STORAGE_KEY_OA);
+  } catch (_) {}
+  return {
+    status: 'SUCCESS',
+    message: 'Database freshly seeded with 247 patents.',
+    activePatents: initialMockData.patents.length
   };
 }

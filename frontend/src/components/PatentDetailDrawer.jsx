@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { recalculateRationale } from '../api/client';
+import { formatPatentCost, sanitizeCurrencyText } from '../utils/currency';
+import { getDaysToRenewal } from '../utils/dates';
 
 export default function PatentDetailDrawer({
   patent,
@@ -8,12 +11,45 @@ export default function PatentDetailDrawer({
 }) {
   if (!patent) return null;
 
-  const [selectedDecision, setSelectedDecision] = useState('LAPSE');
-  const [reasoning, setReasoning] = useState(
-    patent.businessValueScore < 40
-      ? 'No current product dependency and renewal cost exceeds expected commercial value.'
-      : ''
+  // Progressive Disclosure States
+  const [showWhyFactors, setShowWhyFactors] = useState(false);
+  const [activeEvidenceTab, setActiveEvidenceTab] = useState(null); // null (hidden) | 'claims' | 'priorArt' | 'dates' | 'source'
+
+  // Consequential Decision State
+  const [chosenDecision, setChosenDecision] = useState(null); // null | 'RENEW' | 'LAPSE'
+  const [attorneyReasoning, setAttorneyReasoning] = useState(
+    patent.businessValueScore < 40 || patent.isFlagged
+      ? 'No current product dependency and renewal cost exceeds commercial defensibility threshold.'
+      : 'Core strategic asset protecting active revenue line; continued exclusive protection warranted.'
   );
+
+  // AI Recalculation State
+  const [currentRationale, setCurrentRationale] = useState(patent.businessValueRationale);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [recalcSuccess, setRecalcSuccess] = useState(false);
+
+  // Confirmation & Error Screen States
+  const [committedRecord, setCommittedRecord] = useState(null);
+  const [submissionError, setSubmissionError] = useState(null);
+
+  const daysLeft = getDaysToRenewal(patent.renewalDeadline);
+  const isFlagged = patent.isFlagged || patent.businessValueScore < 40;
+  const recommendedAction = isFlagged ? 'ALLOW TO LAPSE' : 'RENEW';
+
+  useEffect(() => {
+    // Reset state on patent change
+    setCurrentRationale(patent.businessValueRationale);
+    setShowWhyFactors(false);
+    setActiveEvidenceTab(null);
+    setChosenDecision(null);
+    setAttorneyReasoning(
+      patent.businessValueScore < 40 || patent.isFlagged
+        ? 'No current product dependency and renewal cost exceeds commercial defensibility threshold.'
+        : 'Core strategic asset protecting active revenue line; continued exclusive protection warranted.'
+    );
+    setCommittedRecord(null);
+    setSubmissionError(null);
+  }, [patent.id]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -23,222 +59,422 @@ export default function PatentDetailDrawer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const getTierClass = (tier) => {
-    if (tier === 'HIGH') return 'high';
-    if (tier === 'MEDIUM') return 'medium';
-    return 'low';
+  const handleRecalculateRationale = async () => {
+    setIsRecalculating(true);
+    setRecalcSuccess(false);
+    try {
+      const res = await recalculateRationale(patent.id || patent.patentNumber);
+      if (res.businessValueRationale) {
+        setCurrentRationale(res.businessValueRationale);
+      }
+      setRecalcSuccess(true);
+      setTimeout(() => setRecalcSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to recalculate rationale:', err);
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
-  const isFlagged = patent.isFlagged || patent.businessValueScore < 40;
-  const isReasoningValid = reasoning.trim().length > 0;
+  const handleCommitDecision = async (e) => {
+    if (e) e.preventDefault();
+    if (!chosenDecision || !attorneyReasoning.trim() || submitting) return;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!isReasoningValid) return;
+    setSubmissionError(null);
+    try {
+      const result = await onSubmitDecision({
+        patentNumber: patent.patentNumber,
+        decision: chosenDecision,
+        reasoning: attorneyReasoning.trim(),
+        actor: 'Lead IP Attorney'
+      });
 
-    onSubmitDecision({
-      patentNumber: patent.patentNumber,
-      decision: selectedDecision,
-      reasoning: reasoning.trim(),
-      actor: 'Attorney'
-    });
+      // Show Full-Screen Takeover Confirmation
+      setCommittedRecord({
+        decision: chosenDecision,
+        patentNumber: patent.patentNumber,
+        patentTitle: patent.title,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        date: new Date().toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
+        actor: 'Lead IP Attorney'
+      });
+    } catch (err) {
+      console.error('Decision commitment failed:', err);
+      setSubmissionError(err.message || 'The backend could not confirm this decision. Nothing has been recorded.');
+    }
   };
 
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <aside className="intelligence-drawer" onClick={(e) => e.stopPropagation()}>
-        {/* Drawer Header */}
-        <div className="drawer-header">
-          <div style={{ flex: 1, paddingRight: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700, color: 'var(--accent)' }}>
-                {patent.patentNumber}
-              </span>
-              <span className={`badge-micro-source ${patent.sourceType === 'REAL' ? 'real' : 'synth'}`}>
-                {patent.sourceType === 'REAL' ? '● VERIFIED REAL DATA' : 'SYNTHETIC RECORD'}
-              </span>
-              <span className="badge-jur">{patent.jurisdiction}</span>
-            </div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', lineHeight: '1.35', marginBottom: '10px' }}>
-              {patent.title}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>
-              <span><strong>ASSIGNEE:</strong> {patent.applicant}</span>
-              <span><strong>APP:</strong> {patent.applicationNumber || 'N/A'}</span>
-              <span><strong>EXPIRY:</strong> {patent.expiryDate}</span>
-            </div>
-          </div>
+    <div className="case-room-backdrop" onClick={onClose}>
+      <div className="case-room-modal" onClick={(e) => e.stopPropagation()}>
+        {/* ============================================================
+            5. FULL-SCREEN AUDIT COMMITMENT CONFIRMATION TAKEOVER
+            ============================================================ */}
+        {committedRecord ? (
+          <div className="case-confirmation-takeover">
+            <div className="takeover-content">
+              <div className="takeover-icon-pulse">
+                <span className="takeover-check-mark">✓</span>
+              </div>
 
-          <button className="drawer-close-btn" onClick={onClose} aria-label="Close intelligence drawer">
-            ✕
-          </button>
-        </div>
+              <div className="takeover-pre-heading">AUDIT LEDGER COMMITMENT COMPLETE</div>
 
-        {/* Drawer Content Body */}
-        <div className="drawer-content">
-          {/* Business Value Score Spectral Display */}
-          <div className="drawer-score-card">
-            <div className="score-headline-row">
-              <div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
-                  BUSINESS VALUE EVALUATION
+              <h1 className="takeover-main-title">
+                DECISION<br />COMMITTED
+              </h1>
+
+              <div className={`takeover-decision-tag ${committedRecord.decision === 'RENEW' ? 'renew' : 'lapse'}`}>
+                {committedRecord.decision === 'RENEW' ? 'RENEWAL AUTHORIZED' : 'DELIBERATE LAPSE COMMITTED'}
+              </div>
+
+              <div className="takeover-patent-id">
+                {committedRecord.patentNumber}
+              </div>
+
+              <p className="takeover-patent-title">
+                {committedRecord.patentTitle}
+              </p>
+
+              <div className="takeover-meta-card">
+                <div className="meta-row">
+                  <span>Authorizing Actor:</span>
+                  <strong>{committedRecord.actor}</strong>
                 </div>
-                <div className="score-big-display">
-                  <span style={{ color: patent.businessValueScore >= 70 ? 'var(--accent)' : isFlagged ? 'var(--urgent)' : 'var(--warning)' }}>
-                    {patent.businessValueScore}
-                  </span>
-                  <span className="score-denom">/100</span>
+                <div className="meta-row">
+                  <span>Audit Timestamp:</span>
+                  <strong>{committedRecord.date} · {committedRecord.timestamp}</strong>
+                </div>
+                <div className="meta-row">
+                  <span>Persistence Status:</span>
+                  <strong className="text-accent">PERMANENTLY RECORDED IN SQLite</strong>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <span className={`score-badge-tier ${getTierClass(patent.businessValueTier)}`} style={{ fontSize: '11px', padding: '3px 8px' }}>
-                  {patent.businessValueTier} CONVICTION
+              <button className="takeover-exit-btn" onClick={onClose}>
+                RETURN TO PORTFOLIO →
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Header Control Bar */}
+            <div className="case-room-header">
+              <div className="case-identifier-line">
+                <span className="case-badge-active">CASE DOSSIER</span>
+                <span className="case-badge-jur">{patent.jurisdiction}</span>
+                <span className={`badge-micro-source ${patent.sourceType === 'REAL' ? 'real' : 'synth'}`}>
+                  {patent.sourceType === 'REAL' ? '● VERIFIED REAL DATA' : 'SYNTHETIC RECORD'}
                 </span>
               </div>
-            </div>
 
-            {/* Spectral Gauge Bar */}
-            <div className="spectral-bar-track">
-              <div
-                className="spectral-indicator-dot"
-                style={{ left: `${Math.max(4, Math.min(96, patent.businessValueScore))}%` }}
-              />
-            </div>
-            <div className="spectral-labels">
-              <span>0 (LAPSE)</span>
-              <span>50 (REVIEW)</span>
-              <span>100 (RENEW)</span>
-            </div>
-
-            {/* Factor Breakdown Bars */}
-            <div className="factor-bars-group">
-              <div className="factor-item">
-                <span className="factor-item-title">Product Relevance (40%)</span>
-                <div className="factor-track">
-                  <div
-                    className={`factor-fill ${patent.productRelevance < 40 ? 'urgent' : ''}`}
-                    style={{ width: `${Math.min(100, patent.productRelevance)}%` }}
-                  />
-                </div>
-                <span className="factor-val">{Math.round(patent.productRelevance)}</span>
-              </div>
-
-              <div className="factor-item">
-                <span className="factor-item-title">Citation Percentile (25%)</span>
-                <div className="factor-track">
-                  <div
-                    className={`factor-fill ${patent.citationPercentile < 40 ? 'urgent' : ''}`}
-                    style={{ width: `${Math.min(100, patent.citationPercentile)}%` }}
-                  />
-                </div>
-                <span className="factor-val">{Math.round(patent.citationPercentile)}</span>
-              </div>
-
-              <div className="factor-item">
-                <span className="factor-item-title">Remaining Term (20%)</span>
-                <div className="factor-track">
-                  <div
-                    className={`factor-fill ${patent.remainingLifeNormalized < 40 ? 'urgent' : ''}`}
-                    style={{ width: `${Math.min(100, patent.remainingLifeNormalized)}%` }}
-                  />
-                </div>
-                <span className="factor-val">{Math.round(patent.remainingLifeNormalized)}</span>
-              </div>
-
-              <div className="factor-item">
-                <span className="factor-item-title">Cost Efficiency (15%)</span>
-                <div className="factor-track">
-                  <div
-                    className={`factor-fill ${patent.inverseRenewalCostPercentile < 40 ? 'urgent' : ''}`}
-                    style={{ width: `${Math.min(100, patent.inverseRenewalCostPercentile)}%` }}
-                  />
-                </div>
-                <span className="factor-val">{Math.round(patent.inverseRenewalCostPercentile)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Editorial Analytical Quote */}
-          <div className={`editorial-rationale ${isFlagged ? 'flagged' : ''}`}>
-            <div className="editorial-title">
-              {isFlagged ? '⚠ WHY THIS ASSET IS FLAGGED' : 'VALUATION INTELLIGENCE RATIONALE'}
-            </div>
-            <p className="editorial-text">{patent.businessValueRationale}</p>
-          </div>
-
-          {/* Renewal Summary Strip */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '12px',
-            backgroundColor: 'var(--surface-inset)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '14px 18px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11.5px'
-          }}>
-            <div>
-              <span style={{ color: 'var(--text-muted)' }}>RENEWAL DEADLINE:</span>
-              <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '13px', marginTop: '2px' }}>
-                {patent.renewalDeadline}
-              </div>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)' }}>MAINTENANCE FEE:</span>
-              <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '13px', marginTop: '2px' }}>
-                {patent.jurisdiction === 'EP' ? '€' : '$'}{patent.renewalCost?.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* Consequential Renewal Decision Box */}
-          <div className="consequential-decision-box">
-            <div className="consequential-title">CONSEQUENTIAL DECISION COMMITMENT</div>
-            <form onSubmit={handleSubmit}>
-              <div className="decision-action-cards">
-                <div
-                  className={`decision-action-card ${selectedDecision === 'RENEW' ? 'active-renew' : ''}`}
-                  onClick={() => setSelectedDecision('RENEW')}
-                >
-                  <div className="action-card-main">RENEW</div>
-                  <div className="action-card-sub">Authorize payment & maintain exclusive protection</div>
-                </div>
-
-                <div
-                  className={`decision-action-card ${selectedDecision === 'LAPSE' ? 'active-lapse' : ''}`}
-                  onClick={() => setSelectedDecision('LAPSE')}
-                >
-                  <div className="action-card-main">ALLOW TO LAPSE</div>
-                  <div className="action-card-sub">Terminate renewal cycle & conserve IP budget</div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                ATTORNEY REASONING (MANDATORY AUDIT JUSTIFICATION):
-              </div>
-              <textarea
-                className="reasoning-textarea"
-                placeholder="State formal justification for renewal authorization or deliberate lapse..."
-                value={reasoning}
-                onChange={(e) => setReasoning(e.target.value)}
-                required
-              />
-
-              <button
-                type="submit"
-                className="commit-decision-btn"
-                disabled={!isReasoningValid || submitting}
-              >
-                {submitting
-                  ? 'COMMITTING TO AUDIT LEDGER...'
-                  : `COMMIT ${selectedDecision} DECISION`}
+              <button className="case-close-x-btn" onClick={onClose} aria-label="Close case file">
+                ✕
               </button>
-            </form>
-          </div>
-        </div>
-      </aside>
+            </div>
+
+            {/* Scrollable Progressive Dossier Body */}
+            <div className="case-room-body">
+              {/* ============================================================
+                  1. ACTION — DOMINANT HERO DECISION FRAME
+                  ============================================================ */}
+              <section className="case-signal-block">
+                <div className="case-hero-action-row">
+                  <div className="case-hero-lead">
+                    <h1 className="case-patent-huge-num">{patent.patentNumber}</h1>
+                    <h2 className="case-patent-title">{patent.title}</h2>
+                    <div className="case-assignee-text font-mono">
+                      ASSIGNED TO {patent.applicant}
+                    </div>
+                  </div>
+
+                  <div className="case-action-decision-pill">
+                    <span className={`case-rec-badge ${isFlagged ? 'lapse' : 'renew'}`}>
+                      ● {recommendedAction}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="case-signal-callout">
+                  <div className="callout-item">
+                    <span className="callout-lbl">BUSINESS VALUE</span>
+                    <div className="callout-huge-val accent">
+                      {patent.businessValueScore}
+                    </div>
+                    <span className="callout-sub">{patent.businessValueTier} CONVICTION</span>
+                  </div>
+
+                  <div className="callout-divider" />
+
+                  <div className="callout-item">
+                    <span className="callout-lbl">RENEWAL DEADLINE</span>
+                    <div className="callout-huge-val urgent">
+                      {daysLeft > 0 ? `${daysLeft} DAYS` : 'OVERDUE'}
+                    </div>
+                    <span className="callout-sub">{patent.renewalDeadline}</span>
+                  </div>
+
+                  <div className="callout-divider" />
+
+                  <div className="callout-item">
+                    <span className="callout-lbl">MAINTENANCE COST</span>
+                    <div className="callout-huge-val">
+                      {formatPatentCost(patent.renewalCost, patent.jurisdiction)}
+                    </div>
+                    <span className="callout-sub">ANNUAL OBLIGATION</span>
+                  </div>
+                </div>
+
+                {/* Progressive WHY toggle button */}
+                <div className="case-why-toggle-wrap">
+                  <button
+                    className={`case-why-btn ${showWhyFactors ? 'active' : ''}`}
+                    onClick={() => setShowWhyFactors(!showWhyFactors)}
+                  >
+                    {showWhyFactors ? '▲ HIDE EXPLANATION' : '▼ WHY THIS SCORE?'}
+                  </button>
+                </div>
+              </section>
+
+              {/* ============================================================
+                  2. EXPLANATION — REVEALED ON [ WHY? ]
+                  ============================================================ */}
+              {showWhyFactors && (
+                <section className="case-progressive-section why-section-revealed">
+                  <div className="case-summary-sentence">
+                    <p className="summary-quote-text font-mono">
+                      "{sanitizeCurrencyText(currentRationale, patent.jurisdiction)}"
+                    </p>
+                  </div>
+
+                  <div className="why-factors-expanded-drawer">
+                    <div className="factor-visual-rows">
+                      <div className="factor-row">
+                        <div className="factor-hdr font-mono">
+                          <span>COMMERCIAL PRODUCT RELEVANCE (40%)</span>
+                          <strong>{Math.round(patent.productRelevance)}</strong>
+                        </div>
+                        <div className="factor-bar-track">
+                          <div
+                            className={`factor-bar-fill ${patent.productRelevance < 40 ? 'urgent' : ''}`}
+                            style={{ width: `${Math.min(100, patent.productRelevance)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="factor-row">
+                        <div className="factor-hdr font-mono">
+                          <span>CITATION STRENGTH (25%)</span>
+                          <strong>{Math.round(patent.citationPercentile)}</strong>
+                        </div>
+                        <div className="factor-bar-track">
+                          <div
+                            className={`factor-bar-fill ${patent.citationPercentile < 40 ? 'urgent' : ''}`}
+                            style={{ width: `${Math.min(100, patent.citationPercentile)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="factor-row">
+                        <div className="factor-hdr font-mono">
+                          <span>REMAINING ENFORCEABLE TERM (20%)</span>
+                          <strong>{Math.round(patent.remainingLifeNormalized)}</strong>
+                        </div>
+                        <div className="factor-bar-track">
+                          <div
+                            className={`factor-bar-fill ${patent.remainingLifeNormalized < 40 ? 'urgent' : ''}`}
+                            style={{ width: `${Math.min(100, patent.remainingLifeNormalized)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="factor-row">
+                        <div className="factor-hdr font-mono">
+                          <span>RENEWAL ECONOMICS (15%)</span>
+                          <strong>{Math.round(patent.inverseRenewalCostPercentile)}</strong>
+                        </div>
+                        <div className="factor-bar-track">
+                          <div
+                            className={`factor-bar-fill ${patent.inverseRenewalCostPercentile < 40 ? 'urgent' : ''}`}
+                            style={{ width: `${Math.min(100, patent.inverseRenewalCostPercentile)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="recalculate-rationale-row">
+                      <button
+                        className="recalculate-live-btn font-mono"
+                        onClick={handleRecalculateRationale}
+                        disabled={isRecalculating}
+                      >
+                        {isRecalculating ? (
+                          <>
+                            <span className="mini-spinner" /> RE-CALCULATING RATIONALE...
+                          </>
+                        ) : recalcSuccess ? (
+                          '✓ RATIONALE UPDATED'
+                        ) : (
+                          '⚡ RE-RUN AI RATIONALE'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* ============================================================
+                  3. EVIDENCE — PROGRESSIVE DOCUMENT LAYERS
+                  ============================================================ */}
+              <section className="case-progressive-section">
+                <div className="evidence-selector-tabs">
+                  <span className="evidence-lbl font-mono">EVIDENCE:</span>
+                  <button
+                    className={`evidence-pill font-mono ${activeEvidenceTab === 'dates' ? 'active' : ''}`}
+                    onClick={() => setActiveEvidenceTab(activeEvidenceTab === 'dates' ? null : 'dates')}
+                  >
+                    REGISTRY & DATES {activeEvidenceTab === 'dates' ? '▲' : '▼'}
+                  </button>
+                  <button
+                    className={`evidence-pill font-mono ${activeEvidenceTab === 'claims' ? 'active' : ''}`}
+                    onClick={() => setActiveEvidenceTab(activeEvidenceTab === 'claims' ? null : 'claims')}
+                  >
+                    CLAIMS ({patent.claims?.length || 0}) {activeEvidenceTab === 'claims' ? '▲' : '▼'}
+                  </button>
+                  <button
+                    className={`evidence-pill font-mono ${activeEvidenceTab === 'source' ? 'active' : ''}`}
+                    onClick={() => setActiveEvidenceTab(activeEvidenceTab === 'source' ? null : 'source')}
+                  >
+                    PROVENANCE {activeEvidenceTab === 'source' ? '▲' : '▼'}
+                  </button>
+                </div>
+
+                {activeEvidenceTab && (
+                  <div className="evidence-panel-revealed">
+                    {activeEvidenceTab === 'dates' && (
+                      <div className="evidence-dates-grid">
+                        <div className="date-cell">
+                          <span className="cell-k">APPLICATION:</span>
+                          <span className="cell-v font-mono">{patent.applicationNumber || 'N/A'}</span>
+                        </div>
+                        <div className="date-cell">
+                          <span className="cell-k">FILING DATE:</span>
+                          <span className="cell-v font-mono">{patent.filingDate}</span>
+                        </div>
+                        <div className="date-cell">
+                          <span className="cell-k">GRANT DATE:</span>
+                          <span className="cell-v font-mono">{patent.grantDate || 'Pending Prosecution'}</span>
+                        </div>
+                        <div className="date-cell">
+                          <span className="cell-k">STATUTORY EXPIRY:</span>
+                          <span className="cell-v font-mono">{patent.expiryDate}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeEvidenceTab === 'claims' && (
+                      <div className="evidence-claims-flow">
+                        {!patent.claims || patent.claims.length === 0 ? (
+                          <div className="no-claims-text font-mono">No independent claims indexed for this record.</div>
+                        ) : (
+                          patent.claims.map((clm) => (
+                            <div key={clm.id} className="claim-document-box font-mono">
+                              <div className="claim-doc-header">
+                                <strong>Claim {clm.claimNumber}</strong> ({clm.isIndependent ? 'INDEPENDENT' : 'DEPENDENT'})
+                              </div>
+                              <p className="claim-doc-body">{clm.claimText}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {activeEvidenceTab === 'source' && (
+                      <div className="evidence-source-details font-mono">
+                        <div><strong>Source:</strong> {patent.sourceProvider}</div>
+                        <div><strong>Type:</strong> {patent.sourceType}</div>
+                        <div><strong>Retrieved:</strong> {patent.retrievalTimestamp || 'Verified Cache'}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* ============================================================
+                  4. DECISION — THE COMMITMENT ACTION
+                  ============================================================ */}
+              <section className="case-decision-climax-block">
+                {/* Two Clear Choices */}
+                <div className="decision-enormous-choices">
+                  <button
+                    type="button"
+                    className={`decision-choice-btn renew ${chosenDecision === 'RENEW' ? 'selected' : ''}`}
+                    onClick={() => setChosenDecision('RENEW')}
+                  >
+                    <div className="choice-icon">✓</div>
+                    <div className="choice-texts">
+                      <span className="choice-title">RENEW PATENT</span>
+                      <span className="choice-sub">Maintain exclusive protection</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`decision-choice-btn lapse ${chosenDecision === 'LAPSE' ? 'selected' : ''}`}
+                    onClick={() => setChosenDecision('LAPSE')}
+                  >
+                    <div className="choice-icon">✕</div>
+                    <div className="choice-texts">
+                      <span className="choice-title">ALLOW TO LAPSE</span>
+                      <span className="choice-sub">Terminate renewal obligation</span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* When a choice is made, render reasoning input & commit button */}
+                {chosenDecision && (
+                  <form onSubmit={handleCommitDecision} className="decision-commitment-workflow">
+                    <div className="why-reasoning-input-box">
+                      <label className="reasoning-prompt-label font-mono">
+                        <span>ATTORNEY REASONING (AUDIT LOG)</span>
+                        <span className="required-dot">*</span>
+                      </label>
+                      <textarea
+                        className="reasoning-text-input font-mono"
+                        placeholder="State legal / commercial justification for audit record..."
+                        value={attorneyReasoning}
+                        onChange={(e) => setAttorneyReasoning(e.target.value)}
+                        rows={2}
+                        required
+                      />
+                    </div>
+
+                    {submissionError && (
+                      <div className="decision-failure-banner font-mono">
+                        <div className="failure-title">⚠ COMMITMENT FAILED</div>
+                        <div className="failure-msg">{submissionError}</div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className={`consequential-commit-btn ${chosenDecision === 'RENEW' ? 'commit-renew' : 'commit-lapse'}`}
+                      disabled={!attorneyReasoning.trim() || submitting}
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="loading-spinner" /> COMMITTING...
+                        </>
+                      ) : (
+                        `COMMIT ${chosenDecision} DECISION →`
+                      )}
+                    </button>
+                  </form>
+                )}
+              </section>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

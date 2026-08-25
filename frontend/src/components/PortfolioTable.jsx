@@ -1,4 +1,103 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { formatPatentCost } from '../utils/currency';
+import { getDaysToRenewal, getFormattedDate, isUrgentDeadline } from '../utils/dates';
+
+// Reusable Single Portfolio Row Component (guaranteed identical layout & grid)
+function PortfolioRow({
+  patent,
+  isSelected,
+  isUrgent,
+  daysLeft,
+  formattedDate,
+  tierClass,
+  statusTag,
+  onSelect
+}) {
+  return (
+    <div
+      className={`portfolio-table-grid portfolio-row-item ${isSelected ? 'selected' : ''} ${isUrgent ? 'urgent' : ''}`}
+      onClick={() => onSelect(patent)}
+      role="button"
+      tabIndex={0}
+    >
+      {/* 1. PATENT COLUMN */}
+      <div className="col-cell col-patent-meta">
+        <div className="cell-patent-line">
+          <span className="patent-num font-mono">{patent.patentNumber}</span>
+          <span className="badge-jur">{patent.jurisdiction}</span>
+          {patent.sourceType === 'REAL' && (
+            <span className="badge-micro-source real">● REAL</span>
+          )}
+        </div>
+        <div className="cell-patent-title" title={patent.title}>
+          {patent.title}
+        </div>
+        <div className="cell-patent-assignee font-mono" title={patent.applicant}>
+          {patent.applicant}
+        </div>
+      </div>
+
+      {/* 2. VALUE COLUMN */}
+      <div className="col-cell col-value-meta">
+        <div className="cell-value-score-row">
+          <span className={`cell-score-digits font-mono ${tierClass}`}>
+            {patent.businessValueScore}
+          </span>
+          <span className="cell-tier-tag font-mono">
+            {patent.businessValueTier}
+          </span>
+        </div>
+        <div className="cell-value-track">
+          <div
+            className={`cell-value-fill ${tierClass}`}
+            style={{ width: `${Math.min(100, patent.businessValueScore)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 3. DEADLINE COLUMN */}
+      <div className="col-cell col-deadline-meta">
+        <div className={`cell-days-remaining font-mono ${isUrgent ? 'urgent' : ''}`}>
+          {daysLeft > 0 ? `${daysLeft} DAYS` : 'OVERDUE'}
+        </div>
+        <div className="cell-formatted-date font-mono">
+          {formattedDate}
+        </div>
+      </div>
+
+      {/* 4. COST COLUMN (Right-aligned) */}
+      <div className="col-cell col-cost-meta">
+        <div className="cell-cost-amount font-mono">
+          {formatPatentCost(patent.renewalCost, patent.jurisdiction)}
+        </div>
+        <div className="cell-cost-freq font-mono">
+          /year
+        </div>
+      </div>
+
+      {/* 5. RECOMMENDATION COLUMN */}
+      <div className="col-cell col-recommendation-meta">
+        <div className={`cell-recommendation-badge font-mono ${statusTag.class}`}>
+          <span className="status-dot">●</span>
+          <span>{statusTag.label}</span>
+        </div>
+      </div>
+
+      {/* 6. ACTION COLUMN */}
+      <div className="col-cell col-action-meta">
+        <button
+          className="cell-inspect-action-btn font-mono"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(patent);
+          }}
+        >
+          INSPECT →
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function PortfolioTable({
   patents = [],
@@ -10,10 +109,7 @@ export default function PortfolioTable({
   selectedPatentId,
   loading = false
 }) {
-  const formatCost = (cost, jurisdiction) => {
-    const symbol = jurisdiction === 'EP' ? '€' : '$';
-    return `${symbol}${cost.toLocaleString()}`;
-  };
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const getTierClass = (tier) => {
     if (tier === 'HIGH') return 'high';
@@ -21,29 +117,62 @@ export default function PortfolioTable({
     return 'low';
   };
 
-  const getStatusClass = (status) => {
-    const s = (status || '').toLowerCase();
-    if (s === 'renew') return 'renew';
-    if (s === 'lapse') return 'lapse';
-    if (s === 'review') return 'review';
-    return 'pending';
+  const getStatusTag = (status, isFlagged, score) => {
+    if (status === 'RENEW') return { label: 'RENEW', class: 'renew' };
+    if (status === 'LAPSE') return { label: 'LAPSE', class: 'lapse' };
+    if (isFlagged || score < 40) return { label: 'LAPSE', class: 'lapse' };
+    if (status === 'PENDING') return { label: 'REVIEW', class: 'review' };
+    return { label: 'REVIEW', class: 'review' };
   };
 
-  const isUrgentDeadline = (deadlineStr) => {
-    if (!deadlineStr) return false;
-    const dl = new Date(deadlineStr);
-    const now = new Date('2026-08-23');
-    const diffDays = Math.ceil((dl - now) / (1000 * 60 * 60 * 24));
-    return diffDays > 0 && diffDays <= 90;
+  const handleQuickChip = (type) => {
+    if (type === 'all') {
+      onResetFilters();
+    } else if (type === 'urgent') {
+      onFilterChange('flagged_only', false);
+      onFilterChange('sort_by', 'deadline');
+      onFilterChange('sort_order', 'asc');
+    } else if (type === 'low-value') {
+      onFilterChange('tier', 'LOW');
+      onFilterChange('flagged_only', true);
+    } else if (type === 'pending') {
+      onFilterChange('status', 'PENDING');
+      onFilterChange('flagged_only', false);
+    } else if (type === 'us') {
+      onFilterChange('jurisdiction', 'US');
+    } else if (type === 'ep') {
+      onFilterChange('jurisdiction', 'EP');
+    }
   };
+
+  // Compute portfolio attention requirement
+  const attentionCount = patents.filter(
+    (p) => isUrgentDeadline(p.renewalDeadline) || p.businessValueScore < 40 || p.isFlagged
+  ).length;
 
   return (
-    <div>
-      {/* Filter & Search Bar */}
-      <div className="table-filter-bar">
-        <div className="terminal-search-box">
+    <div className="portfolio-command-screen">
+      {/* 1. SHORT PAGE HEADER */}
+      <div className="portfolio-page-header">
+        <div className="portfolio-header-kicker font-mono">PORTFOLIO</div>
+        <div className="portfolio-header-headline-row">
+          <span className="portfolio-assets-count font-mono">
+            {totalCount || patents.length} ASSETS
+          </span>
+          {attentionCount > 0 && (
+            <span className="portfolio-attention-signal font-mono">
+              <span className="signal-dot urgent" /> {attentionCount} REQUIRE ATTENTION
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 2. CLEAN HORIZONTAL FILTER BAR */}
+      <div className="portfolio-filter-toolbar">
+        {/* Search Field */}
+        <div className="portfolio-search-box">
           <svg
-            className="terminal-search-icon"
+            className="search-icon"
             width="13"
             height="13"
             viewBox="0 0 24 24"
@@ -58,216 +187,199 @@ export default function PortfolioTable({
           </svg>
           <input
             type="text"
-            className="terminal-search-input"
-            placeholder="Search patents by ID, title, or assignee..."
+            className="portfolio-search-input"
+            placeholder="Search patents..."
             value={filters.search || ''}
             onChange={(e) => onFilterChange('search', e.target.value)}
           />
+          {filters.search && (
+            <button
+              className="search-clear-x font-mono"
+              onClick={() => onFilterChange('search', '')}
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <div className="terminal-filter-selects">
-          <select
-            className="terminal-select"
-            value={filters.jurisdiction || 'ALL'}
-            onChange={(e) => onFilterChange('jurisdiction', e.target.value)}
+        {/* Quick Filter Pills */}
+        <div className="portfolio-quick-pills-row">
+          <button
+            className={`portfolio-pill ${!filters.flagged_only && filters.jurisdiction === 'ALL' && filters.status === 'ALL' && filters.tier === 'ALL' && filters.sort_by === 'score' ? 'active' : ''}`}
+            onClick={() => handleQuickChip('all')}
           >
-            <option value="ALL">Jurisdiction: All</option>
-            <option value="US">US (USPTO)</option>
-            <option value="EP">EP (EPO)</option>
-            <option value="IN">IN (India)</option>
-          </select>
-
-          <select
-            className="terminal-select"
-            value={filters.status || 'ALL'}
-            onChange={(e) => onFilterChange('status', e.target.value)}
+            ALL
+          </button>
+          <button
+            className={`portfolio-pill ${filters.sort_by === 'deadline' ? 'active urgent' : ''}`}
+            onClick={() => handleQuickChip('urgent')}
           >
-            <option value="ALL">Status: All</option>
-            <option value="REVIEW">REVIEW</option>
-            <option value="PENDING">PENDING</option>
-            <option value="RENEW">RENEW</option>
-            <option value="LAPSE">LAPSE</option>
-          </select>
-
-          <select
-            className="terminal-select"
-            value={filters.tier || 'ALL'}
-            onChange={(e) => onFilterChange('tier', e.target.value)}
+            URGENT
+          </button>
+          <button
+            className={`portfolio-pill ${filters.flagged_only || filters.tier === 'LOW' ? 'active warning' : ''}`}
+            onClick={() => handleQuickChip('low-value')}
           >
-            <option value="ALL">Value Tier: All</option>
-            <option value="HIGH">High (70–100)</option>
-            <option value="MEDIUM">Medium (40–69)</option>
-            <option value="LOW">Low (0–39)</option>
-          </select>
-
-          <select
-            className="terminal-select"
-            value={filters.source || 'ALL'}
-            onChange={(e) => onFilterChange('source', e.target.value)}
+            REVIEW
+          </button>
+          <button
+            className={`portfolio-pill ${filters.status === 'PENDING' ? 'active' : ''}`}
+            onClick={() => handleQuickChip('pending')}
           >
-            <option value="ALL">Source: All</option>
-            <option value="REAL">Real Records</option>
-            <option value="SYNTHETIC">Synthetic Portfolio</option>
-          </select>
+            PENDING
+          </button>
+          <button
+            className={`portfolio-pill ${filters.jurisdiction === 'US' ? 'active' : ''}`}
+            onClick={() => handleQuickChip('us')}
+          >
+            US
+          </button>
+          <button
+            className={`portfolio-pill ${filters.jurisdiction === 'EP' ? 'active' : ''}`}
+            onClick={() => handleQuickChip('ep')}
+          >
+            EP
+          </button>
+        </div>
 
-          <button className="terminal-reset-btn" onClick={onResetFilters}>
-            Reset
+        {/* Actions (Filters Dropdown & Reset) */}
+        <div className="portfolio-toolbar-actions">
+          <button
+            className={`portfolio-advanced-toggle-btn font-mono ${showAdvancedFilters ? 'active' : ''}`}
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          >
+            <span>FILTERS</span>
+            <span className="toggle-arrow">{showAdvancedFilters ? '▲' : '▾'}</span>
+          </button>
+          <button
+            className="portfolio-reset-action-btn font-mono"
+            onClick={onResetFilters}
+          >
+            RESET
           </button>
         </div>
       </div>
 
-      {/* Terminal Table Panel */}
-      <div className="terminal-table-panel">
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Portfolio Intelligence Ledger
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10.5px', color: 'var(--text-muted)' }}>
-            Showing {patents.length} of {totalCount} records
-          </span>
+      {/* Collapsible Advanced Filters Tray */}
+      {showAdvancedFilters && (
+        <div className="portfolio-advanced-tray">
+          <div className="tray-filter-group">
+            <label className="font-mono">JURISDICTION</label>
+            <select
+              className="terminal-select"
+              value={filters.jurisdiction || 'ALL'}
+              onChange={(e) => onFilterChange('jurisdiction', e.target.value)}
+            >
+              <option value="ALL">All Jurisdictions</option>
+              <option value="US">US (USPTO)</option>
+              <option value="EP">EP (EPO)</option>
+              <option value="IN">IN (India)</option>
+            </select>
+          </div>
+
+          <div className="tray-filter-group">
+            <label className="font-mono">VALUE TIER</label>
+            <select
+              className="terminal-select"
+              value={filters.tier || 'ALL'}
+              onChange={(e) => onFilterChange('tier', e.target.value)}
+            >
+              <option value="ALL">All Conviction Tiers</option>
+              <option value="HIGH">High Conviction (70–100)</option>
+              <option value="MEDIUM">Moderate (40–69)</option>
+              <option value="LOW">Low Value (0–39)</option>
+            </select>
+          </div>
+
+          <div className="tray-filter-group">
+            <label className="font-mono">STATUS</label>
+            <select
+              className="terminal-select"
+              value={filters.status || 'ALL'}
+              onChange={(e) => onFilterChange('status', e.target.value)}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="REVIEW">REVIEW</option>
+              <option value="PENDING">PENDING</option>
+              <option value="RENEW">RENEW</option>
+              <option value="LAPSE">LAPSE</option>
+            </select>
+          </div>
+
+          <div className="tray-filter-group">
+            <label className="font-mono">SORT BY</label>
+            <select
+              className="terminal-select"
+              value={filters.sort_by || 'score'}
+              onChange={(e) => onFilterChange('sort_by', e.target.value)}
+            >
+              <option value="score">Business Value Score</option>
+              <option value="deadline">Renewal Deadline</option>
+              <option value="cost">Renewal Cost</option>
+              <option value="patentNumber">Patent Number</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* 3. PERFECTLY ALIGNED COMMAND TABLE */}
+      <div className="portfolio-command-table-wrapper">
+        {/* SHARED CSS GRID HEADER */}
+        <div className="portfolio-table-grid portfolio-table-header-row font-mono">
+          <div className="col-hdr col-patent-meta">PATENT</div>
+          <div className="col-hdr col-value-meta">VALUE</div>
+          <div className="col-hdr col-deadline-meta">DEADLINE</div>
+          <div className="col-hdr col-cost-meta">COST</div>
+          <div className="col-hdr col-recommendation-meta">RECOMMENDATION</div>
+          <div className="col-hdr col-action-meta">ACTION</div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="terminal-table">
-            <thead>
-              <tr>
-                <th
-                  className="sortable"
-                  onClick={() =>
-                    onFilterChange(
-                      'sort_by',
-                      'patentNumber',
-                      'sort_order'
-                    )
-                  }
-                >
-                  Patent
-                </th>
-                <th>Title & Assignee</th>
-                <th>Jur</th>
-                <th
-                  className="sortable"
-                  onClick={() => onFilterChange('sort_by', 'score')}
-                  style={{ textAlign: 'right' }}
-                >
-                  Value
-                </th>
-                <th
-                  className="sortable"
-                  onClick={() => onFilterChange('sort_by', 'deadline')}
-                  style={{ textAlign: 'right' }}
-                >
-                  Deadline
-                </th>
-                <th
-                  className="sortable"
-                  onClick={() => onFilterChange('sort_by', 'cost')}
-                  style={{ textAlign: 'right' }}
-                >
-                  Fee
-                </th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    Loading portfolio intelligence records...
-                  </td>
-                </tr>
-              ) : patents.length === 0 ? (
-                <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    No patents match the selected filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                patents.map((pat) => {
-                  const urgent = isUrgentDeadline(pat.renewalDeadline);
-                  const isFlagged = pat.isFlagged || pat.businessValueScore < 40;
-                  const isSelected = selectedPatentId === pat.id;
+        {/* TABLE BODY (SAME EXACT CSS GRID PER ROW) */}
+        {loading ? (
+          <div className="portfolio-state-message">
+            <span className="loading-spinner" />
+            <span>Scanning asset conviction data...</span>
+          </div>
+        ) : patents.length === 0 ? (
+          <div className="portfolio-state-message empty">
+            <div className="empty-title font-mono">NO PATENTS FOUND</div>
+            <p className="empty-sub">No portfolio assets match the active search or filter parameters.</p>
+            <button className="empty-reset-cta font-mono" onClick={onResetFilters}>
+              RESET FILTERS
+            </button>
+          </div>
+        ) : (
+          <div className="portfolio-rows-container">
+            {patents.map((pat) => {
+              const daysLeft = getDaysToRenewal(pat.renewalDeadline);
+              const urgent = isUrgentDeadline(pat.renewalDeadline);
+              const isSelected = selectedPatentId === pat.id;
+              const statusTag = getStatusTag(pat.renewalStatus, pat.isFlagged, pat.businessValueScore);
+              const formattedDate = getFormattedDate(pat.renewalDeadline);
+              const tierClass = getTierClass(pat.businessValueTier);
 
-                  return (
-                    <tr
-                      key={pat.id}
-                      className={`${isFlagged ? 'flagged-row' : ''} ${isSelected ? 'selected-row' : ''}`}
-                      onClick={() => onSelectPatent(pat)}
-                    >
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span className="patent-identifier">{pat.patentNumber}</span>
-                          <span className={`badge-micro-source ${pat.sourceType === 'REAL' ? 'real' : 'synth'}`}>
-                            {pat.sourceType === 'REAL' ? 'REAL' : 'SYNTH'}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ maxWidth: '380px' }}>
-                        <div
-                          style={{
-                            color: 'var(--text-primary)',
-                            fontWeight: 500,
-                            lineHeight: 1.35,
-                            marginBottom: '2px',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 1,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden'
-                          }}
-                          title={pat.title}
-                        >
-                          {pat.title}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {pat.applicant}
-                        </div>
-                      </td>
-                      <td>
-                        <span className="badge-jur">{pat.jurisdiction}</span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div className="terminal-score-cell" style={{ justifyContent: 'flex-end' }}>
-                          <span style={{ fontWeight: 700 }}>{pat.businessValueScore}</span>
-                          <span className={`score-badge-tier ${getTierClass(pat.businessValueTier)}`}>
-                            {pat.businessValueTier}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
-                          <span className="font-mono" style={{ fontSize: '12px' }}>{pat.renewalDeadline}</span>
-                          {urgent && (
-                            <span
-                              style={{
-                                fontSize: '8.5px',
-                                padding: '1px 4px',
-                                backgroundColor: 'var(--urgent-dim)',
-                                color: 'var(--urgent)',
-                                border: '1px solid var(--urgent-border)',
-                                borderRadius: '2px',
-                                fontFamily: 'var(--font-mono)',
-                                fontWeight: 700
-                              }}
-                            >
-                              URGENT
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="font-mono" style={{ textAlign: 'right' }}>
-                        {formatCost(pat.renewalCost, pat.jurisdiction)}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`terminal-status-tag ${getStatusClass(pat.renewalStatus)}`}>
-                          {pat.renewalStatus}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+              return (
+                <PortfolioRow
+                  key={pat.id}
+                  patent={pat}
+                  isSelected={isSelected}
+                  isUrgent={urgent}
+                  daysLeft={daysLeft}
+                  formattedDate={formattedDate}
+                  tierClass={tierClass}
+                  statusTag={statusTag}
+                  onSelect={onSelectPatent}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table Summary Footer */}
+        <div className="portfolio-table-footer-bar font-mono">
+          <span>PORTFOLIO ASSETS: <strong>{patents.length}</strong> OF <strong>{totalCount}</strong></span>
+          <span className="footer-inspect-hint">Click any row to open the Decision Workspace</span>
         </div>
       </div>
     </div>

@@ -2,41 +2,53 @@ import React from 'react';
 
 export default function TopHeader({
   activeTab,
-  dataSourceStatus,
-  aiProviderStatus
+  dataSourceStatus = 'CACHED DATA',
+  aiProviderStatus = 'LOCAL DEMO AI',
+  onNavigate
 }) {
-  const getSectionTitle = () => {
-    if (activeTab === 'portfolio') return 'PORTFOLIO INTELLIGENCE';
-    if (activeTab === 'decisions') return 'DECISION AUDIT LEDGER';
-    if (activeTab === 'office-actions') return 'OFFICE ACTION ANALYST WORKSTATION';
-    return 'CONTROL ROOM';
+  const tabTitles = {
+    'command': 'COMMAND CENTER',
+    'portfolio': 'PORTFOLIO DIRECTORY',
+    'office-actions': 'PROSECUTION WORKSTATION',
+    'decisions': 'DECISION AUDIT LEDGER',
+    'system': 'PLATFORM RUNTIME & REGISTRY'
   };
 
-  const getSourceClass = () => {
-    if (dataSourceStatus === 'LIVE DATA') return 'live';
-    if (dataSourceStatus === 'CACHED DATA') return 'cached';
-    return 'demo';
-  };
-
-  const getAiClass = () => {
-    if (aiProviderStatus === 'ANTHROPIC AI') return 'ai';
-    return 'demo';
-  };
+  const isLiveRegistry = dataSourceStatus === 'LIVE DATA';
+  const isClaudeAI = aiProviderStatus === 'ANTHROPIC AI' || aiProviderStatus === 'ANTHROPIC_AI';
 
   return (
-    <header className="top-header">
-      <div className="top-header-left">
-        <span className="header-section-title">{getSectionTitle()}</span>
-        <span className="header-date-string">Sunday, 23 August 2026</span>
+    <header className="cinematic-top-header">
+      {/* Breadcrumb Navigation */}
+      <div className="header-breadcrumbs">
+        <span className="crumb-root">PATENT+</span>
+        <span className="crumb-sep">/</span>
+        <span className="crumb-active">{tabTitles[activeTab] || 'COMMAND'}</span>
       </div>
 
-      <div className="top-header-right">
-        <div className={`header-pill ${getSourceClass()}`} title="External Patent Data Pipeline">
-          <span className="pulse-dot" /> {dataSourceStatus || 'CACHED DATA'}
-        </div>
+      {/* Status Pills */}
+      <div className="header-runtime-pills">
+        <button
+          className={`runtime-pill ${isLiveRegistry ? 'live' : 'cached'}`}
+          onClick={() => onNavigate && onNavigate('system')}
+          title="Patent Registry Connection Status"
+        >
+          <span className="pill-dot" />
+          <span>{isLiveRegistry ? 'LIVE REGISTRY' : 'VERIFIED CACHE'}</span>
+        </button>
 
-        <div className={`header-pill ${getAiClass()}`} title="Active AI Legal Intelligence Engine">
-          <span className="pulse-dot" /> {aiProviderStatus || 'LOCAL DEMO AI'}
+        <button
+          className={`runtime-pill ${isClaudeAI ? 'claude' : 'local'}`}
+          onClick={() => onNavigate && onNavigate('system')}
+          title="AI Legal Intelligence Provider"
+        >
+          <span className="pill-dot" />
+          <span>{isClaudeAI ? 'CLAUDE 3.5' : 'LOCAL DEMO AI'}</span>
+        </button>
+
+        <div className="runtime-pill session">
+          <span className="session-dot">●</span>
+          <span>LEAD IP COUNSEL</span>
         </div>
       </div>
     </header>

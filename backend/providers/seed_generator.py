@@ -116,7 +116,8 @@ def seed_database(force: bool = False) -> int:
         cursor.execute("DELETE FROM claims;")
         cursor.execute("DELETE FROM office_actions;")
         cursor.execute("DELETE FROM patents;")
-        # Note: We preserve decision_log if table exists to remain append-only!
+        if force:
+            cursor.execute("DELETE FROM decision_log;")
 
         rnd = random.Random(RANDOM_SEED)
         now = datetime(2026, 8, 23, 14, 30, 0)

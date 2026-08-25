@@ -1,26 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
-import IntelligenceStrip from './components/IntelligenceStrip';
-import ScatterPlotMatrix from './components/ScatterPlotMatrix';
+import CommandOverview from './components/CommandOverview';
 import PortfolioTable from './components/PortfolioTable';
 import PatentDetailDrawer from './components/PatentDetailDrawer';
-import DecisionLogView from './components/DecisionLogView';
 import OfficeActionView from './components/OfficeActionView';
+import DecisionLogView from './components/DecisionLogView';
+import SystemStatusView from './components/SystemStatusView';
 import {
   fetchDashboard,
   fetchPatents,
+  fetchPatent,
   fetchDecisions,
   submitDecision,
   fetchSystemStatus
 } from './api/client';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('portfolio'); // 'portfolio' | 'decisions' | 'office-actions'
+  const [activeTab, setActiveTab] = useState('command'); // 'command' | 'portfolio' | 'office-actions' | 'decisions' | 'system'
   const [dashboardData, setDashboardData] = useState(null);
   const [systemStatus, setSystemStatus] = useState(null);
-  const [patents, setPatents] = useState([]);
-  const [totalPatents, setTotalPatents] = useState(0);
+  
+  // Canonical complete portfolio dataset (always contains the full 247 portfolio records)
+  const [allPatents, setAllPatents] = useState([]);
+  
+  // Filtered dataset specifically for PortfolioTable view
+  const [portfolioPatents, setPortfolioPatents] = useState([]);
+  const [totalPortfolioPatents, setTotalPortfolioPatents] = useState(0);
+  
   const [decisions, setDecisions] = useState([]);
   const [selectedPatent, setSelectedPatent] = useState(null);
 
@@ -49,18 +56,28 @@ export default function App() {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
-    }, 3200);
+    }, 3600);
   };
 
   useEffect(() => {
+    loadAllPatents();
     loadDashboard();
     loadDecisions();
     loadSystemStatus();
   }, []);
 
   useEffect(() => {
-    loadPatents();
+    loadPortfolioPatents();
   }, [filters]);
+
+  const loadAllPatents = async () => {
+    try {
+      const res = await fetchPatents({ limit: 250, sort_by: 'score', sort_order: 'desc' });
+      setAllPatents(res.patents || []);
+    } catch (err) {
+      console.error('All patents fetch error:', err);
+    }
+  };
 
   const loadDashboard = async () => {
     try {
@@ -83,14 +100,14 @@ export default function App() {
     }
   };
 
-  const loadPatents = async () => {
+  const loadPortfolioPatents = async () => {
     try {
       setLoadingPatents(true);
       const res = await fetchPatents(filters);
-      setPatents(res.patents || []);
-      setTotalPatents(res.total || 0);
+      setPortfolioPatents(res.patents || []);
+      setTotalPortfolioPatents(res.total || 0);
     } catch (err) {
-      console.error('Patents error:', err);
+      console.error('Portfolio patents error:', err);
     } finally {
       setLoadingPatents(false);
     }
@@ -108,11 +125,10 @@ export default function App() {
     }
   };
 
-  const handleFilterChange = (key, value, extraKey = null) => {
+  const handleFilterChange = (key, value) => {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
-      ...(extraKey ? { [extraKey]: prev[extraKey] === 'asc' ? 'desc' : 'asc' } : {}),
     }));
   };
 
@@ -120,25 +136,40 @@ export default function App() {
     setFilters(initialFilters);
   };
 
-  const handleIntelligenceStripFilter = (type) => {
+  const handleNavigateToPortfolioWithFilter = ({ filterType }) => {
     setActiveTab('portfolio');
-    if (type === 'low-value') {
-      setFilters({
-        ...initialFilters,
-        tier: 'LOW',
-        flagged_only: true,
-      });
-    } else if (type === 'upcoming') {
+    if (filterType === 'urgent') {
       setFilters({
         ...initialFilters,
         sort_by: 'deadline',
         sort_order: 'asc',
       });
-    } else if (type === 'pending') {
+    } else if (filterType === 'low-value') {
       setFilters({
         ...initialFilters,
-        status: 'PENDING',
+        tier: 'LOW',
+        flagged_only: true,
       });
+    } else if (filterType === 'healthy') {
+      setFilters({
+        ...initialFilters,
+        tier: 'HIGH',
+      });
+    } else {
+      setFilters(initialFilters);
+    }
+  };
+
+  const handleSelectPatentByNumber = async (patentNumber) => {
+    try {
+      const p = await fetchPatent(patentNumber);
+      setSelectedPatent(p);
+    } catch (err) {
+      console.error('Failed to load patent by number:', err);
+      // Fallback search in existing list
+      const found = allPatents.find((item) => item.patentNumber === patentNumber) ||
+                    portfolioPatents.find((item) => item.patentNumber === patentNumber);
+      if (found) setSelectedPatent(found);
     }
   };
 
@@ -147,22 +178,27 @@ export default function App() {
     try {
       const res = await submitDecision(payload);
       showToast(`DECISION COMMITTED: ${res.decision} FOR ${res.patentNumber}`);
-      setSelectedPatent(null);
 
-      // Refresh state
-      await loadDashboard();
-      await loadPatents();
-      await loadDecisions();
+      // Refresh canonical data and views
+      await Promise.all([
+        loadAllPatents(),
+        loadPortfolioPatents(),
+        loadDashboard(),
+        loadDecisions()
+      ]);
+
+      return res;
     } catch (err) {
-      console.error('Decision submission error:', err);
-      showToast(`SUBMISSION ERROR: ${err.message}`);
+      console.error('Decision submission failed:', err);
+      // Re-throw so drawer can render explicit error state
+      throw err;
     } finally {
       setSubmittingDecision(false);
     }
   };
 
   const stats = dashboardData?.stats || {
-    activePatents: 247,
+    activePatents: allPatents.length || 247,
     upcomingDeadlines: 12,
     pendingDecisions: 8,
     lowValueFlagged: 23,
@@ -170,86 +206,97 @@ export default function App() {
     aiProviderStatus: 'LOCAL DEMO AI',
   };
 
+  const totalAttention = (stats.upcomingDeadlines || 0) + (stats.lowValueFlagged || 0);
+
   return (
     <div className="cinematic-shell">
-      {/* Slim Left Sidebar Instrument Panel */}
+      {/* 1. Slim Left Sidebar Instrument Panel */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         counts={{
-          activePatents: stats.activePatents,
+          attentionCount: totalAttention,
+          activePatents: allPatents.length || stats.activePatents || 247,
           decisionsCount: decisions.length,
           officeActionsCount: 1,
         }}
         systemStatus={systemStatus}
       />
 
-      {/* Main Viewport */}
+      {/* 2. Main Viewport */}
       <div className="main-viewport">
         {/* Top Header */}
         <TopHeader
           activeTab={activeTab}
           dataSourceStatus={stats.dataSourceStatus}
           aiProviderStatus={stats.aiProviderStatus}
+          onNavigate={setActiveTab}
         />
 
         {/* Content Body */}
         <main className="content-body">
+          {/* TAB 1: COMMAND OVERVIEW (Always receives canonical allPatents) */}
+          {activeTab === 'command' && (
+            <CommandOverview
+              dashboardData={dashboardData}
+              patents={allPatents}
+              decisions={decisions}
+              onSelectPatent={setSelectedPatent}
+              selectedPatentId={selectedPatent?.id}
+              onNavigateToPortfolio={handleNavigateToPortfolioWithFilter}
+              onNavigateToDecisions={() => setActiveTab('decisions')}
+            />
+          )}
+
+          {/* TAB 2: PORTFOLIO (Receives filtered portfolioPatents) */}
           {activeTab === 'portfolio' && (
-            <div>
-              {/* Cinematic Dashboard Hero */}
-              <section className="hero-overview-section">
-                <div className="hero-tag">PORTFOLIO OVERVIEW</div>
-                <div className="hero-stats-headline">
-                  <div className="hero-dominant-number">{stats.activePatents}</div>
-                  <div className="hero-dominant-label">ACTIVE PATENTS</div>
-                </div>
-                <p className="hero-description">
-                  Capital deployed across the active intellectual property portfolio.
-                </p>
-                <div className="hero-indicator-line" />
-              </section>
-
-              {/* Horizontal Intelligence Readout Strip */}
-              <IntelligenceStrip
-                upcomingDeadlines={stats.upcomingDeadlines}
-                pendingDecisions={stats.pendingDecisions}
-                lowValueFlagged={stats.lowValueFlagged}
-                onSelectFilter={handleIntelligenceStripFilter}
-              />
-
-              {/* Value vs Deadline Matrix (Scatter Plot) */}
-              <ScatterPlotMatrix
-                patents={patents}
-                onSelectPatent={setSelectedPatent}
-                selectedPatentId={selectedPatent?.id}
-              />
-
-              {/* Terminal Portfolio Table */}
-              <PortfolioTable
-                patents={patents}
-                totalCount={totalPatents}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onResetFilters={handleResetFilters}
-                onSelectPatent={setSelectedPatent}
-                selectedPatentId={selectedPatent?.id}
-                loading={loadingPatents}
-              />
-            </div>
+            <PortfolioTable
+              patents={portfolioPatents}
+              totalCount={totalPortfolioPatents}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onResetFilters={handleResetFilters}
+              onSelectPatent={setSelectedPatent}
+              selectedPatentId={selectedPatent?.id}
+              loading={loadingPatents}
+            />
           )}
 
-          {activeTab === 'decisions' && (
-            <DecisionLogView decisions={decisions} loading={loadingDecisions} />
-          )}
-
+          {/* TAB 3: OFFICE ACTIONS */}
           {activeTab === 'office-actions' && (
             <OfficeActionView onNotify={showToast} />
+          )}
+
+          {/* TAB 4: DECISIONS AUDIT LEDGER */}
+          {activeTab === 'decisions' && (
+            <DecisionLogView
+              decisions={decisions}
+              loading={loadingDecisions}
+              onSelectPatentNumber={handleSelectPatentByNumber}
+            />
+          )}
+
+          {/* TAB 5: SYSTEM DIAGNOSTICS */}
+          {activeTab === 'system' && (
+            <SystemStatusView
+              systemStatus={systemStatus}
+              dashboardData={dashboardData}
+              onResetComplete={async () => {
+                await Promise.all([
+                  loadAllPatents(),
+                  loadPortfolioPatents(),
+                  loadDashboard(),
+                  loadDecisions(),
+                  loadSystemStatus()
+                ]);
+              }}
+              onNotify={showToast}
+            />
           )}
         </main>
       </div>
 
-      {/* Right Slide-Over Intelligence Drawer */}
+      {/* 3. Right Slide-Over Intelligence Workspace Drawer */}
       {selectedPatent && (
         <PatentDetailDrawer
           patent={selectedPatent}
@@ -259,7 +306,7 @@ export default function App() {
         />
       )}
 
-      {/* Cinematic Toast Notification */}
+      {/* 4. Cinematic Toast Notification */}
       {toastMessage && (
         <div className="cinematic-toast">
           <span className="pulse-dot" />

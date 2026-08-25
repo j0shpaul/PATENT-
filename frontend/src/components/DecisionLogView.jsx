@@ -1,120 +1,122 @@
 import React, { useState } from 'react';
 
-export default function DecisionLogView({ decisions = [], loading = false }) {
+export default function DecisionLogView({ decisions = [], loading = false, onSelectPatentNumber }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('ALL');
 
   const filteredDecisions = decisions.filter((d) => {
-    if (!searchTerm.trim()) return true;
-    const q = searchTerm.toLowerCase();
-    return (
-      d.patentNumber.toLowerCase().includes(q) ||
-      (d.patentTitle && d.patentTitle.toLowerCase().includes(q)) ||
-      d.decision.toLowerCase().includes(q) ||
-      d.reasoning.toLowerCase().includes(q)
-    );
+    const matchesSearch =
+      !searchTerm.trim() ||
+      d.patentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (d.patentTitle && d.patentTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      d.reasoning.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (d.actor && d.actor.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesType = filterType === 'ALL' || d.decision === filterType;
+    return matchesSearch && matchesType;
   });
 
   return (
-    <div className="ledger-container">
-      {/* Ledger Header Card */}
-      <div className="ledger-header-card">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Decision Audit Ledger
-            </span>
-            <span className="badge-micro-source synth" style={{ color: 'var(--accent)', borderColor: 'var(--accent-border)' }}>
-              ● APPEND ONLY
-            </span>
-          </div>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>
-            Permanent cryptographic audit trail of all executive patent renewal and lapse authorizations
-          </div>
+    <div className="cinematic-ledger-screen">
+      {/* 1. TOP HEADER */}
+      <div className="ledger-top-banner">
+        <div className="ledger-title-group">
+          <div className="ledger-kicker font-mono">AUDIT LEDGER</div>
+          <h1 className="ledger-main-title">DECISION AUDIT TIMELINE</h1>
         </div>
 
-        <div className="terminal-search-box" style={{ maxWidth: '300px' }}>
-          <svg
-            className="terminal-search-icon"
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            className="terminal-search-input"
-            placeholder="Search audit trail..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        {/* Filter Toolbar */}
+        <div className="ledger-toolbar-row">
+          <div className="ledger-mode-pills">
+            <button
+              className={`pill-btn ${filterType === 'ALL' ? 'active' : ''}`}
+              onClick={() => setFilterType('ALL')}
+            >
+              ALL ({decisions.length})
+            </button>
+            <button
+              className={`pill-btn renew ${filterType === 'RENEW' ? 'active' : ''}`}
+              onClick={() => setFilterType('RENEW')}
+            >
+              RENEWALS ({decisions.filter((d) => d.decision === 'RENEW').length})
+            </button>
+            <button
+              className={`pill-btn lapse ${filterType === 'LAPSE' ? 'active' : ''}`}
+              onClick={() => setFilterType('LAPSE')}
+            >
+              LAPSES ({decisions.filter((d) => d.decision === 'LAPSE').length})
+            </button>
+          </div>
+
+          <div className="ledger-search-box">
+            <input
+              type="text"
+              className="ledger-search-input font-mono"
+              placeholder="Search audit decisions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="search-clear-btn" onClick={() => setSearchTerm('')}>✕</button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Ledger Timeline */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
-          Loading permanent decision ledger...
-        </div>
-      ) : filteredDecisions.length === 0 ? (
-        <div className="ledger-entry-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', marginBottom: '6px' }}>
-            NO DECISION RECORDS FOUND
+      {/* 2. CHRONOLOGICAL TIMELINE */}
+      <div className="ledger-vertical-timeline-container">
+        {loading ? (
+          <div className="timeline-loading-box font-mono">
+            <span className="loading-spinner" />
+            <span>Loading decision log...</span>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '440px', margin: '0 auto' }}>
-            {decisions.length === 0
-              ? 'No renewal authorizations or lapse decisions have been committed yet. Select any flagged asset in the Portfolio view to log a permanent decision.'
-              : 'No audit records match the search filter.'}
+        ) : filteredDecisions.length === 0 ? (
+          <div className="timeline-empty-box font-mono">
+            <div className="empty-title">NO AUDIT RECORDS</div>
+            <p className="empty-desc">No decisions committed yet.</p>
           </div>
-        </div>
-      ) : (
-        <div className="ledger-timeline">
-          {filteredDecisions.map((dec) => {
-            const isLapse = dec.decision === 'LAPSE';
-            return (
-              <div key={dec.id} className="ledger-entry-card">
-                <div className={`ledger-node-dot ${isLapse ? 'lapse' : ''}`} />
+        ) : (
+          <div className="timeline-events-stream">
+            {filteredDecisions.map((dec, idx) => {
+              const isLapse = dec.decision === 'LAPSE';
 
-                <div className="ledger-entry-header">
-                  <div className="ledger-patent-id">
-                    <span>{dec.patentNumber}</span>
-                    <span className={`terminal-status-tag ${isLapse ? 'lapse' : 'renew'}`}>
-                      {dec.decision}
-                    </span>
+              return (
+                <div key={dec.id || idx} className="timeline-event-card">
+                  <div className={`timeline-spine-dot ${isLapse ? 'lapse' : 'renew'}`} />
+
+                  <div className="timeline-card-content">
+                    <div className="event-decision-action-line">
+                      <span className={`event-decision-badge ${isLapse ? 'lapse' : 'renew'}`}>
+                        {dec.decision === 'RENEW' ? 'RENEWED' : 'LAPSED'}
+                      </span>
+                      <strong
+                        className="event-patent-number font-mono"
+                        onClick={() => onSelectPatentNumber && onSelectPatentNumber(dec.patentNumber)}
+                        role="button"
+                        tabIndex={0}
+                        title="Open dossier"
+                      >
+                        {dec.patentNumber}
+                      </strong>
+                      <span className="event-date-timestamp font-mono">
+                        {dec.timestamp} · {dec.actor || 'Lead IP Attorney'}
+                      </span>
+                    </div>
+
+                    {dec.patentTitle && (
+                      <div className="event-patent-title font-mono">{dec.patentTitle}</div>
+                    )}
+
+                    <div className="event-reasoning-quote font-mono">
+                      "{dec.reasoning}"
+                    </div>
                   </div>
-
-                  <span className="ledger-timestamp">{dec.timestamp}</span>
                 </div>
-
-                {dec.patentTitle && (
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                    {dec.patentTitle}
-                  </div>
-                )}
-
-                <div className="ledger-reasoning-quote">
-                  "{dec.reasoning}"
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span className="ledger-actor-chip">
-                    AUTHORIZING COUNSEL: <strong>{dec.actor || 'Lead IP Attorney'}</strong>
-                  </span>
-                  <span className="font-mono" style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
-                    RECORD ID: {dec.id}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

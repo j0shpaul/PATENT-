@@ -48,7 +48,7 @@ async def list_patents(
     if flagged_only:
         query += " AND (is_flagged = 1 OR business_value_score < 40)"
 
-    # Sorting
+    # Sorting with deterministic secondary sort key
     sort_map = {
         "score": "business_value_score",
         "deadline": "renewal_deadline",
@@ -57,7 +57,7 @@ async def list_patents(
     }
     col = sort_map.get(sort_by, "business_value_score")
     order = "ASC" if sort_order.lower() == "asc" else "DESC"
-    query += f" ORDER BY {col} {order} LIMIT ? OFFSET ?"
+    query += f" ORDER BY {col} {order}, patent_number ASC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 
     with get_db_connection() as conn:
