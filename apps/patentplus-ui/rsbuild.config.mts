@@ -90,12 +90,14 @@ export default defineConfig(() => ({
 	source: {
 		entry: { index: './src/index.ts' },
 		define: {
-			'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:8000/api'),
+			'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || ''),
 		},
+
 	},
 	resolve: {
 		alias: {
 			'@patentplus': path.resolve(__dirname, '../../frontend/src'),
+			'@pipelines': path.resolve(__dirname, '../../pipelines'),
 			'react': path.resolve(__dirname, 'node_modules/react'),
 			'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
 			'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),

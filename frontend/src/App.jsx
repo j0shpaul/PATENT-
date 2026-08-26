@@ -7,6 +7,9 @@ import PatentDetailDrawer from './components/PatentDetailDrawer';
 import OfficeActionView from './components/OfficeActionView';
 import DecisionLogView from './components/DecisionLogView';
 import SystemStatusView from './components/SystemStatusView';
+import BatchProcessingView from './components/BatchProcessingView';
+import HumanReviewStation from './components/HumanReviewStation';
+import { executeRocketRidePatentBatch } from './api/rocketridePipelineRunner';
 import {
   fetchDashboard,
   fetchPatents,
@@ -17,7 +20,7 @@ import {
 } from './api/client';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('command'); // 'command' | 'portfolio' | 'office-actions' | 'decisions' | 'system'
+  const [activeTab, setActiveTab] = useState('command'); // 'command' | 'batch' | 'human-review' | 'portfolio' | 'office-actions' | 'decisions' | 'system'
   const [dashboardData, setDashboardData] = useState(null);
   const [systemStatus, setSystemStatus] = useState(null);
   
@@ -30,6 +33,12 @@ export default function App() {
   
   const [decisions, setDecisions] = useState([]);
   const [selectedPatent, setSelectedPatent] = useState(null);
+
+  // RocketRide Batch Engine & Human Review State
+  const [batchResult, setBatchResult] = useState(null);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(null);
+  const [humanReviewQueue, setHumanReviewQueue] = useState([]);
 
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [loadingPatents, setLoadingPatents] = useState(false);
@@ -73,7 +82,23 @@ export default function App() {
   const loadAllPatents = async () => {
     try {
       const res = await fetchPatents({ limit: 250, sort_by: 'score', sort_order: 'desc' });
-      setAllPatents(res.patents || []);
+      const list = res.patents || [];
+      setAllPatents(list);
+      // Pre-populate human review queue with seeded review cases if not already populated
+      setHumanReviewQueue((prev) => {
+        if (prev.length > 0) return prev;
+        return list.filter(
+          (p) =>
+            p.requiresHumanReview ||
+            p.status === 'HUMAN_REVIEW' ||
+            p.renewalStatus === 'REVIEW' ||
+            p.renewalStatus === 'HUMAN_REVIEW' ||
+            (p.confidenceScore && p.confidenceScore < 0.85) ||
+            (p.contradictions && p.contradictions.length > 0) ||
+            p.isFlagged ||
+            p.businessValueScore < 40
+        );
+      });
     } catch (err) {
       console.error('All patents fetch error:', err);
     }
@@ -126,6 +151,45 @@ export default function App() {
   };
 
   const handleFilterChange = (key, value) => {
+    if (key === 'tab') {
+      if (value === 'ALL') {
+        setFilters({
+          ...initialFilters,
+          search: filters.search || '',
+          tab: 'ALL',
+        });
+      } else if (value === 'URGENT') {
+        setFilters({
+          ...initialFilters,
+          search: filters.search || '',
+          tab: 'URGENT',
+          sort_by: 'deadline',
+          sort_order: 'asc',
+        });
+      } else if (value === 'REVIEW') {
+        setFilters({
+          ...initialFilters,
+          search: filters.search || '',
+          tab: 'REVIEW',
+        });
+      } else if (value === 'US') {
+        setFilters({
+          ...initialFilters,
+          search: filters.search || '',
+          tab: 'US',
+          jurisdiction: 'US',
+        });
+      } else if (value === 'EP') {
+        setFilters({
+          ...initialFilters,
+          search: filters.search || '',
+          tab: 'EP',
+          jurisdiction: 'EP',
+        });
+      }
+      return;
+    }
+
     setFilters((prev) => ({
       ...prev,
       [key]: value,
@@ -137,19 +201,13 @@ export default function App() {
   };
 
   const handleNavigateToPortfolioWithFilter = ({ filterType }) => {
+    if (filterType === 'review' || filterType === 'low-value') {
+      setActiveTab('human-review');
+      return;
+    }
     setActiveTab('portfolio');
     if (filterType === 'urgent') {
-      setFilters({
-        ...initialFilters,
-        sort_by: 'deadline',
-        sort_order: 'asc',
-      });
-    } else if (filterType === 'low-value') {
-      setFilters({
-        ...initialFilters,
-        tier: 'LOW',
-        flagged_only: true,
-      });
+      handleFilterChange('tab', 'URGENT');
     } else if (filterType === 'healthy') {
       setFilters({
         ...initialFilters,
@@ -170,6 +228,51 @@ export default function App() {
       const found = allPatents.find((item) => item.patentNumber === patentNumber) ||
                     portfolioPatents.find((item) => item.patentNumber === patentNumber);
       if (found) setSelectedPatent(found);
+    }
+  };
+
+  const handleRunRocketRideBatch = async (batchInput) => {
+    setIsProcessingBatch(true);
+    setBatchProgress(null);
+    try {
+      showToast('🚀 Launching RocketRide Multi-Agent Pipeline...');
+      const res = await executeRocketRidePatentBatch(batchInput, {
+        onProgress: (prog) => setBatchProgress(prog)
+      });
+      setBatchResult(res);
+      setHumanReviewQueue(res.humanReviewQueue || []);
+      showToast(`✓ Batch Complete: ${res.summary.totalProcessed} evaluated (${res.summary.humanReviewRequiredCount} in Human Review)`);
+    } catch (err) {
+      console.error('Batch pipeline execution failed:', err);
+      showToast(`Batch execution error: ${err.message}`);
+    } finally {
+      setIsProcessingBatch(false);
+    }
+  };
+
+  const handleCommitHumanDecision = async (payload) => {
+    setSubmittingDecision(true);
+    try {
+      const res = await submitDecision(payload);
+      showToast(`✓ HUMAN DECISION COMMITTED: ${res.decision} FOR ${res.patentNumber}`);
+
+      // Remove from human review queue
+      setHumanReviewQueue((prev) => prev.filter((p) => p.patentNumber !== payload.patentNumber));
+
+      // Refresh canonical data and views
+      await Promise.all([
+        loadAllPatents(),
+        loadPortfolioPatents(),
+        loadDashboard(),
+        loadDecisions()
+      ]);
+
+      return res;
+    } catch (err) {
+      console.error('Human decision commitment failed:', err);
+      throw err;
+    } finally {
+      setSubmittingDecision(false);
     }
   };
 
@@ -219,6 +322,7 @@ export default function App() {
           activePatents: allPatents.length || stats.activePatents || 247,
           decisionsCount: decisions.length,
           officeActionsCount: 1,
+          humanReviewCount: humanReviewQueue.length,
         }}
         systemStatus={systemStatus}
       />
@@ -248,10 +352,34 @@ export default function App() {
             />
           )}
 
-          {/* TAB 2: PORTFOLIO (Receives filtered portfolioPatents) */}
+          {/* TAB 2: BATCH PROCESSING CONSOLE */}
+          {activeTab === 'batch' && (
+            <BatchProcessingView
+              onRunBatch={handleRunRocketRideBatch}
+              isProcessing={isProcessingBatch}
+              progress={batchProgress}
+              batchResult={batchResult}
+              samplePatents={allPatents}
+              onNavigateToHumanReview={() => setActiveTab('human-review')}
+              onSelectPatent={setSelectedPatent}
+            />
+          )}
+
+          {/* TAB 3: HUMAN-IN-THE-LOOP REVIEW STATION */}
+          {activeTab === 'human-review' && (
+            <HumanReviewStation
+              reviewQueue={humanReviewQueue}
+              onCommitDecision={handleCommitHumanDecision}
+              onSelectPatent={setSelectedPatent}
+              submitting={submittingDecision}
+            />
+          )}
+
+          {/* TAB 4: PORTFOLIO (Receives filtered portfolioPatents & canonical allPatents) */}
           {activeTab === 'portfolio' && (
             <PortfolioTable
               patents={portfolioPatents}
+              allPatents={allPatents}
               totalCount={totalPortfolioPatents}
               filters={filters}
               onFilterChange={handleFilterChange}
@@ -262,12 +390,12 @@ export default function App() {
             />
           )}
 
-          {/* TAB 3: OFFICE ACTIONS */}
+          {/* TAB 5: OFFICE ACTIONS */}
           {activeTab === 'office-actions' && (
             <OfficeActionView onNotify={showToast} />
           )}
 
-          {/* TAB 4: DECISIONS AUDIT LEDGER */}
+          {/* TAB 6: DECISIONS AUDIT LEDGER */}
           {activeTab === 'decisions' && (
             <DecisionLogView
               decisions={decisions}
@@ -276,7 +404,7 @@ export default function App() {
             />
           )}
 
-          {/* TAB 5: SYSTEM DIAGNOSTICS */}
+          {/* TAB 7: SYSTEM DIAGNOSTICS */}
           {activeTab === 'system' && (
             <SystemStatusView
               systemStatus={systemStatus}

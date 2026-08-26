@@ -101,6 +101,7 @@ function PortfolioRow({
 
 export default function PortfolioTable({
   patents = [],
+  allPatents = [],
   totalCount = 0,
   filters,
   onFilterChange,
@@ -121,34 +122,36 @@ export default function PortfolioTable({
     if (status === 'RENEW') return { label: 'RENEW', class: 'renew' };
     if (status === 'LAPSE') return { label: 'LAPSE', class: 'lapse' };
     if (isFlagged || score < 40) return { label: 'LAPSE', class: 'lapse' };
-    if (status === 'PENDING') return { label: 'REVIEW', class: 'review' };
+    if (status === 'PENDING' || status === 'HUMAN_REVIEW') return { label: 'REVIEW', class: 'review' };
     return { label: 'REVIEW', class: 'review' };
   };
 
-  const handleQuickChip = (type) => {
-    if (type === 'all') {
-      onResetFilters();
-    } else if (type === 'urgent') {
-      onFilterChange('flagged_only', false);
-      onFilterChange('sort_by', 'deadline');
-      onFilterChange('sort_order', 'asc');
-    } else if (type === 'low-value') {
-      onFilterChange('tier', 'LOW');
-      onFilterChange('flagged_only', true);
-    } else if (type === 'pending') {
-      onFilterChange('status', 'PENDING');
-      onFilterChange('flagged_only', false);
-    } else if (type === 'us') {
-      onFilterChange('jurisdiction', 'US');
-    } else if (type === 'ep') {
-      onFilterChange('jurisdiction', 'EP');
-    }
+  // Determine current active tab
+  const currentTab = filters.tab || (
+    filters.sort_by === 'deadline' && !filters.flagged_only && filters.status === 'ALL' && filters.jurisdiction === 'ALL'
+      ? 'URGENT'
+      : filters.jurisdiction === 'US'
+      ? 'US'
+      : filters.jurisdiction === 'EP'
+      ? 'EP'
+      : (filters.status === 'HUMAN_REVIEW' || filters.flagged_only)
+      ? 'REVIEW'
+      : 'ALL'
+  );
+
+  const handleTabSelect = (tabKey) => {
+    onFilterChange('tab', tabKey);
   };
 
-  // Compute portfolio attention requirement
-  const attentionCount = patents.filter(
-    (p) => isUrgentDeadline(p.renewalDeadline) || p.businessValueScore < 40 || p.isFlagged
-  ).length;
+  // Compute synchronized dataset tab counts
+  const sourceList = allPatents.length > 0 ? allPatents : patents;
+  const allCount = sourceList.length || totalCount || 247;
+  const urgentCount = sourceList.filter((p) => isUrgentDeadline(p.renewalDeadline) || p.isFlagged).length;
+  const reviewCount = sourceList.filter((p) => p.requiresHumanReview || p.status === 'HUMAN_REVIEW' || (p.confidenceScore && p.confidenceScore < 0.85) || (p.contradictions && p.contradictions.length > 0) || p.isFlagged || p.businessValueScore < 40).length;
+  const usCount = sourceList.filter((p) => p.jurisdiction === 'US').length;
+  const epCount = sourceList.filter((p) => p.jurisdiction === 'EP').length;
+
+  const attentionCount = urgentCount;
 
   return (
     <div className="portfolio-command-screen">
@@ -203,43 +206,37 @@ export default function PortfolioTable({
           )}
         </div>
 
-        {/* Quick Filter Pills */}
-        <div className="portfolio-quick-pills-row">
+        {/* Canonical Quick Filter Tabs */}
+        <div className="portfolio-quick-pills-row font-mono">
           <button
-            className={`portfolio-pill ${!filters.flagged_only && filters.jurisdiction === 'ALL' && filters.status === 'ALL' && filters.tier === 'ALL' && filters.sort_by === 'score' ? 'active' : ''}`}
-            onClick={() => handleQuickChip('all')}
+            className={`portfolio-pill ${currentTab === 'ALL' ? 'active' : ''}`}
+            onClick={() => handleTabSelect('ALL')}
           >
-            ALL
+            ALL ({allCount})
           </button>
           <button
-            className={`portfolio-pill ${filters.sort_by === 'deadline' ? 'active urgent' : ''}`}
-            onClick={() => handleQuickChip('urgent')}
+            className={`portfolio-pill ${currentTab === 'URGENT' ? 'active urgent' : ''}`}
+            onClick={() => handleTabSelect('URGENT')}
           >
-            URGENT
+            URGENT ({urgentCount})
           </button>
           <button
-            className={`portfolio-pill ${filters.flagged_only || filters.tier === 'LOW' ? 'active warning' : ''}`}
-            onClick={() => handleQuickChip('low-value')}
+            className={`portfolio-pill ${currentTab === 'REVIEW' ? 'active warning' : ''}`}
+            onClick={() => handleTabSelect('REVIEW')}
           >
-            REVIEW
+            REVIEW ({reviewCount})
           </button>
           <button
-            className={`portfolio-pill ${filters.status === 'PENDING' ? 'active' : ''}`}
-            onClick={() => handleQuickChip('pending')}
+            className={`portfolio-pill ${currentTab === 'US' ? 'active' : ''}`}
+            onClick={() => handleTabSelect('US')}
           >
-            PENDING
+            US ({usCount})
           </button>
           <button
-            className={`portfolio-pill ${filters.jurisdiction === 'US' ? 'active' : ''}`}
-            onClick={() => handleQuickChip('us')}
+            className={`portfolio-pill ${currentTab === 'EP' ? 'active' : ''}`}
+            onClick={() => handleTabSelect('EP')}
           >
-            US
-          </button>
-          <button
-            className={`portfolio-pill ${filters.jurisdiction === 'EP' ? 'active' : ''}`}
-            onClick={() => handleQuickChip('ep')}
-          >
-            EP
+            EP ({epCount})
           </button>
         </div>
 

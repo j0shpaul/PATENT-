@@ -11,6 +11,7 @@ logger = logging.getLogger("patent_plus.routes.patents")
 @router.get("", response_model=Dict[str, Any])
 async def list_patents(
     search: Optional[str] = Query(None, description="Search patent number, title, or assignee"),
+    tab: Optional[str] = Query(None, description="ALL, URGENT, REVIEW, US, EP"),
     jurisdiction: Optional[str] = Query(None, description="US, EP, IN, or all"),
     status: Optional[str] = Query(None, description="REVIEW, RENEW, LAPSE, PENDING, or all"),
     tier: Optional[str] = Query(None, description="HIGH, MEDIUM, LOW, or all"),
@@ -29,24 +30,33 @@ async def list_patents(
         query += " AND (patent_number LIKE ? OR title LIKE ? OR applicant LIKE ? OR application_number LIKE ?)"
         params.extend([term, term, term, term])
 
-    if jurisdiction and jurisdiction.upper() != "ALL":
-        query += " AND jurisdiction = ?"
-        params.append(jurisdiction.upper())
+    if tab and tab.upper() == "URGENT":
+        query += " AND (renewal_deadline <= date('now', '+90 days') OR is_flagged = 1)"
+    elif tab and tab.upper() == "REVIEW":
+        query += " AND (renewal_status = 'HUMAN_REVIEW' OR renewal_status = 'PENDING' OR is_flagged = 1 OR business_value_score < 40)"
+    elif tab and tab.upper() == "US":
+        query += " AND jurisdiction = 'US'"
+    elif tab and tab.upper() == "EP":
+        query += " AND jurisdiction = 'EP'"
+    else:
+        if jurisdiction and jurisdiction.upper() != "ALL":
+            query += " AND jurisdiction = ?"
+            params.append(jurisdiction.upper())
 
-    if status and status.upper() != "ALL":
-        query += " AND renewal_status = ?"
-        params.append(status.upper())
+        if status and status.upper() != "ALL":
+            query += " AND renewal_status = ?"
+            params.append(status.upper())
 
-    if tier and tier.upper() != "ALL":
-        query += " AND business_value_tier = ?"
-        params.append(tier.upper())
+        if tier and tier.upper() != "ALL":
+            query += " AND business_value_tier = ?"
+            params.append(tier.upper())
 
-    if source and source.upper() != "ALL":
-        query += " AND source_type = ?"
-        params.append(source.upper())
+        if source and source.upper() != "ALL":
+            query += " AND source_type = ?"
+            params.append(source.upper())
 
-    if flagged_only:
-        query += " AND (is_flagged = 1 OR business_value_score < 40)"
+        if flagged_only:
+            query += " AND (is_flagged = 1 OR business_value_score < 40)"
 
     # Sorting with deterministic secondary sort key
     sort_map = {
@@ -67,22 +77,9 @@ async def list_patents(
         patents = [row_to_patent_dict(r) for r in rows]
 
         # Total matching count
-        count_query = "SELECT COUNT(*) FROM patents WHERE 1=1"
+        where_clause = query[query.index("WHERE"):query.index("ORDER BY")]
+        count_query = f"SELECT COUNT(*) FROM patents {where_clause}"
         count_params = params[:-2]
-        # Reconstruct where clauses
-        if search and search.strip():
-            count_query += " AND (patent_number LIKE ? OR title LIKE ? OR applicant LIKE ? OR application_number LIKE ?)"
-        if jurisdiction and jurisdiction.upper() != "ALL":
-            count_query += " AND jurisdiction = ?"
-        if status and status.upper() != "ALL":
-            count_query += " AND renewal_status = ?"
-        if tier and tier.upper() != "ALL":
-            count_query += " AND business_value_tier = ?"
-        if source and source.upper() != "ALL":
-            count_query += " AND source_type = ?"
-        if flagged_only:
-            count_query += " AND (is_flagged = 1 OR business_value_score < 40)"
-        
         cursor.execute(count_query, count_params)
         total_matching = cursor.fetchone()[0]
 

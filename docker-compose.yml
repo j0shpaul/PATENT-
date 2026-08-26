@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: patentplus_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: patent_plus
+      POSTGRES_USER: patent_admin
+      POSTGRES_PASSWORD: patent_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U patent_admin -d patent_plus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # FastAPI Production Backend Service
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patentplus_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://patent_admin:patent_secure_password@db:5432/patent_plus
+      PORT: 8000
+      HOST: 0.0.0.0
+      CORS_ORIGINS: "https://staging.rocketride.ai,https://app.rocketride.ai"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      USPTO_API_KEY: "${USPTO_API_KEY:-}"
+      EPO_CONSUMER_KEY: "${EPO_CONSUMER_KEY:-}"
+      EPO_CONSUMER_SECRET: "${EPO_CONSUMER_SECRET:-}"
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
+    driver: local

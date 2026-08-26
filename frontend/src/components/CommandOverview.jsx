@@ -19,7 +19,7 @@ export default function CommandOverview({
   const isUndecided = (p) => {
     if (!p) return false;
     if (decidedPatentNumbers.has(p.patentNumber) || decidedPatentNumbers.has(p.id)) return false;
-    if (p.renewalStatus && p.renewalStatus !== 'PENDING') return false;
+    if (p.renewalStatus === 'DECIDED_RENEW' || p.renewalStatus === 'DECIDED_LAPSE') return false;
     return true;
   };
 
@@ -36,7 +36,7 @@ export default function CommandOverview({
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const reviewPatents = undecidedPatentDaysList.filter(
-    (p) => (p.businessValueScore < 40 || p.isFlagged) && p.daysLeft > 90
+    (p) => p.requiresHumanReview || p.status === 'HUMAN_REVIEW' || (p.confidenceScore && p.confidenceScore < 0.85) || (p.contradictions && p.contradictions.length > 0) || p.isFlagged || p.businessValueScore < 40
   );
 
   const healthyPatents = patentDaysList.filter(
@@ -153,7 +153,7 @@ export default function CommandOverview({
 
         <button
           className="mc-signal-pill review"
-          onClick={() => onNavigateToPortfolio && onNavigateToPortfolio({ filterType: 'low-value' })}
+          onClick={() => onNavigateToPortfolio && onNavigateToPortfolio({ filterType: 'review' })}
           title="Inspect low value / review assets"
         >
           <span className="mc-signal-count">{String(reviewCount).padStart(2, '0')}</span>

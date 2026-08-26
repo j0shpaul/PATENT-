@@ -323,11 +323,17 @@ export default function PatentDetailDrawer({
               )}
 
               {/* ============================================================
-                  3. EVIDENCE — PROGRESSIVE DOCUMENT LAYERS
+                  3. EVIDENCE & MULTI-AGENT DOSSIER — PROGRESSIVE DOCUMENT LAYERS
                   ============================================================ */}
               <section className="case-progressive-section">
                 <div className="evidence-selector-tabs">
-                  <span className="evidence-lbl font-mono">EVIDENCE:</span>
+                  <span className="evidence-lbl font-mono">DOSSIER:</span>
+                  <button
+                    className={`evidence-pill font-mono ${activeEvidenceTab === 'agents' ? 'active' : ''}`}
+                    onClick={() => setActiveEvidenceTab(activeEvidenceTab === 'agents' ? null : 'agents')}
+                  >
+                    4 SPECIALIST AGENTS {activeEvidenceTab === 'agents' ? '▲' : '▼'}
+                  </button>
                   <button
                     className={`evidence-pill font-mono ${activeEvidenceTab === 'dates' ? 'active' : ''}`}
                     onClick={() => setActiveEvidenceTab(activeEvidenceTab === 'dates' ? null : 'dates')}
@@ -350,6 +356,57 @@ export default function PatentDetailDrawer({
 
                 {activeEvidenceTab && (
                   <div className="evidence-panel-revealed">
+                    {activeEvidenceTab === 'agents' && (
+                      <div className="hitl-agents-grid" style={{ marginTop: '8px' }}>
+                        <div className="agent-dossier-card">
+                          <div className="agent-card-header font-mono">
+                            <span className="agent-role-tag">01. TECHNICAL ANALYST</span>
+                            <span className="agent-score text-accent">{patent.agents?.technical?.technicalScore || Math.round(patent.productRelevance || 80)}/100</span>
+                          </div>
+                          <div className="agent-card-body font-mono">
+                            <div className="agent-metric-row"><span>Product Alignment:</span><strong>{patent.agents?.technical?.productRelevance || Math.round(patent.productRelevance || 80)}%</strong></div>
+                            <div className="agent-metric-row"><span>Citation Authority:</span><strong>{patent.agents?.technical?.citationPercentile || Math.round(patent.citationPercentile || 85)}th %ile</strong></div>
+                            <p className="agent-rationale-text">{patent.agents?.technical?.technicalRationale || 'Core technological asset protecting enterprise standard.'}</p>
+                          </div>
+                        </div>
+
+                        <div className="agent-dossier-card">
+                          <div className="agent-card-header font-mono">
+                            <span className="agent-role-tag">02. VALUATION SPECIALIST</span>
+                            <span className="agent-score text-accent">{patent.agents?.valuation?.valuationScore || patent.businessValueScore || 75}/100</span>
+                          </div>
+                          <div className="agent-card-body font-mono">
+                            <div className="agent-metric-row"><span>Annual Annuity:</span><strong>${(patent.renewalCost || 3200).toLocaleString()}</strong></div>
+                            <div className="agent-metric-row"><span>Defensive ROI:</span><strong>{patent.agents?.valuation?.renewalRoi || '2.4'}x</strong></div>
+                            <p className="agent-rationale-text">{patent.agents?.valuation?.valuationRationale || 'High commercial conviction.'}</p>
+                          </div>
+                        </div>
+
+                        <div className="agent-dossier-card">
+                          <div className="agent-card-header font-mono">
+                            <span className="agent-role-tag">03. LEGAL PROSECUTION</span>
+                            <span className={`agent-score ${(patent.agents?.legal?.legalScore || 85) < 50 ? 'text-urgent' : 'text-accent'}`}>{patent.agents?.legal?.legalScore || 85}/100</span>
+                          </div>
+                          <div className="agent-card-body font-mono">
+                            <div className="agent-metric-row"><span>Prosecution Risk:</span><strong>{patent.agents?.legal?.prosecutionRisk || (patent.hasOfficeAction ? 'HIGH' : 'LOW')}</strong></div>
+                            <div className="agent-metric-row"><span>Office Action:</span><strong>{patent.hasOfficeAction ? 'PENDING REJECTION' : 'CLEAN STATUS'}</strong></div>
+                            <p className="agent-rationale-text">{patent.agents?.legal?.legalRationale || 'No pending statutory rejections recorded.'}</p>
+                          </div>
+                        </div>
+
+                        <div className="agent-dossier-card critic-card">
+                          <div className="agent-card-header font-mono">
+                            <span className="agent-role-tag text-urgent">04. ADVERSARIAL CRITIC</span>
+                            <span className="agent-score text-urgent">{patent.agents?.critic?.criticScore || 85}/100</span>
+                          </div>
+                          <div className="agent-card-body font-mono">
+                            <div className="agent-metric-row"><span>Confidence Penalty:</span><strong className="text-urgent">-{patent.agents?.critic?.confidencePenalty || 0} pts</strong></div>
+                            <div className="agent-metric-row"><span>Critic Stance:</span><strong>{patent.agents?.critic?.criticRecommendation || 'PROCEED WITH CAUTION'}</strong></div>
+                            <p className="agent-rationale-text">{patent.agents?.critic?.counterarguments ? patent.agents.critic.counterarguments.join(' ') : 'No fatal design-around or validity flaws identified.'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {activeEvidenceTab === 'dates' && (
                       <div className="evidence-dates-grid">
                         <div className="date-cell">

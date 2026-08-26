@@ -8,14 +8,15 @@ export default function TopHeader({
 }) {
   const tabTitles = {
     'command': 'COMMAND CENTER',
+    'batch': 'ROCKETRIDE BATCH ORCHESTRATION',
+    'human-review': 'HUMAN-IN-THE-LOOP REVIEW STATION',
     'portfolio': 'PORTFOLIO DIRECTORY',
     'office-actions': 'PROSECUTION WORKSTATION',
     'decisions': 'DECISION AUDIT LEDGER',
     'system': 'PLATFORM RUNTIME & REGISTRY'
   };
 
-  const isLiveRegistry = dataSourceStatus === 'LIVE DATA';
-  const isClaudeAI = aiProviderStatus === 'ANTHROPIC AI' || aiProviderStatus === 'ANTHROPIC_AI';
+  const isLiveRegistry = dataSourceStatus.includes('PRODUCTION') || dataSourceStatus === 'LIVE DATA';
 
   return (
     <header className="cinematic-top-header">
@@ -31,19 +32,19 @@ export default function TopHeader({
         <button
           className={`runtime-pill ${isLiveRegistry ? 'live' : 'cached'}`}
           onClick={() => onNavigate && onNavigate('system')}
-          title="Patent Registry Connection Status"
+          title="Data Storage & Persistence"
         >
           <span className="pill-dot" />
-          <span>{isLiveRegistry ? 'LIVE REGISTRY' : 'VERIFIED CACHE'}</span>
+          <span>{dataSourceStatus || 'DEMO WORKSPACE · SYNTHETIC'}</span>
         </button>
 
         <button
-          className={`runtime-pill ${isClaudeAI ? 'claude' : 'local'}`}
-          onClick={() => onNavigate && onNavigate('system')}
-          title="AI Legal Intelligence Provider"
+          className="runtime-pill claude"
+          onClick={() => onNavigate && onNavigate('batch')}
+          title="AI Execution Engine"
         >
           <span className="pill-dot" />
-          <span>{isClaudeAI ? 'CLAUDE 3.5' : 'LOCAL DEMO AI'}</span>
+          <span>ROCKETRIDE WAVE · 4 AGENTS</span>
         </button>
 
         <div className="runtime-pill session">

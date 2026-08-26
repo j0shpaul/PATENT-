@@ -47,8 +47,9 @@ export default function SystemStatusView({
     <div className="system-view-container">
       {/* 1. TOP HEADER */}
       <div className="system-header-panel">
-        <div className="section-title-tag font-mono">SYSTEM DIAGNOSTICS</div>
+        <div className="section-title-tag system-kicker font-mono">SYSTEM DIAGNOSTICS</div>
         <h2 className="system-main-heading">RUNTIME STATUS</h2>
+        <p className="system-subtitle-text font-mono">Database, external USPTO/EPO registries, and RocketRide Wave AI runtime telemetry.</p>
       </div>
 
       {/* 2. COMPACT DIAGNOSTIC TILES GRID */}

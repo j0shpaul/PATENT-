@@ -8,9 +8,11 @@ export default function Sidebar({
 }) {
   const navItems = [
     { id: 'command', label: 'COMMAND', badge: counts.attentionCount > 0 ? `${counts.attentionCount}` : null, badgeClass: 'urgent' },
+    { id: 'batch', label: 'BATCH ENGINE', badge: 'PIPE', badgeClass: 'accent' },
+    { id: 'human-review', label: 'HUMAN REVIEW', badge: counts.humanReviewCount > 0 ? `${counts.humanReviewCount}` : null, badgeClass: 'warning' },
     { id: 'portfolio', label: 'PORTFOLIO', badge: `${counts.activePatents || 247}` },
     { id: 'office-actions', label: 'OFFICE ACTIONS', badge: counts.officeActionsCount ? `${counts.officeActionsCount}` : null },
-    { id: 'decisions', label: 'DECISIONS', badge: counts.decisionsCount > 0 ? `${counts.decisionsCount}` : null },
+    { id: 'decisions', label: 'AUDIT LEDGER', badge: counts.decisionsCount > 0 ? `${counts.decisionsCount}` : null },
     { id: 'system', label: 'SYSTEM' }
   ];
 

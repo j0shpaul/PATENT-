@@ -63,14 +63,18 @@ export default function OfficeActionView({ onNotify }) {
 
     try {
       const res = await generateOfficeActionDraft(oaData.id);
+      const generatedDraft = res.draft || res.generatedDraft || res.aiResponseDraft || '';
+      const providerUsed = res.provider || (res.provider === 'ANTHROPIC_AI' ? 'Claude 3.5 Sonnet' : 'RocketRide Legal Prosecution Agent');
+      const draftedAt = res.responseDraftedAt || res.generatedAt || new Date().toLocaleDateString('en-US');
+      
       setOaData((prev) => ({
         ...prev,
-        aiResponseDraft: res.draft,
-        aiProviderUsed: res.provider,
-        responseDraftedAt: res.responseDraftedAt,
+        aiResponseDraft: generatedDraft,
+        aiProviderUsed: providerUsed,
+        responseDraftedAt: draftedAt,
       }));
       if (onNotify) {
-        onNotify(`First-pass response drafted via ${res.provider === 'ANTHROPIC_AI' ? 'Claude 3.5 Sonnet' : 'Local Grounded Legal Engine'}`);
+        onNotify(`✓ First-pass response drafted via ${providerUsed}`);
       }
     } catch (err) {
       console.error('Failed to generate OA response:', err);

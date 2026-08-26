@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const pipeToJsonPlugin = () => ({
+  name: 'pipe-to-json',
+  transform(code, id) {
+    if (id.endsWith('.pipe')) {
+      return {
+        code: `export default ${code};`,
+        map: null
+      };
+    }
+  }
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pipeToJsonPlugin()],
   server: {
     port: 5173,
     host: true,
