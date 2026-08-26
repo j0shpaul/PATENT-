@@ -107,8 +107,17 @@ export default function DecisionLogView({ decisions = [], loading = false, onSel
                       <div className="event-patent-title font-mono">{dec.patentTitle}</div>
                     )}
 
-                    <div className="event-reasoning-quote font-mono">
-                      "{dec.reasoning}"
+                    <div className={`event-reasoning-quote font-mono ${isLapse ? 'lapse' : 'renew'}`}>
+                      <span className="quote-prefix">ATTORNEY COMMENTS & AUDIT REASONING:</span>
+                      {dec.reasoning ? (
+                        <div className="quote-body font-mono">
+                          "{dec.reasoning}"
+                        </div>
+                      ) : (
+                        <div className="quote-body quote-empty font-mono">
+                          No comments recorded for this audit entry.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

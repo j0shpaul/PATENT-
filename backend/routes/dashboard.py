@@ -84,7 +84,17 @@ async def get_dashboard():
 
     # AI Provider Status
     ai_provider = get_ai_provider()
-    ai_status = "ANTHROPIC AI" if ai_provider.get_provider_name() == "ANTHROPIC_AI" else "LOCAL DEMO AI"
+    provider_name = ai_provider.get_provider_name()
+    if provider_name == "OPENROUTER_AI":
+        ai_status = f"OPENROUTER ({ai_provider.model})"
+    elif provider_name == "OPENAI_AI":
+        ai_status = f"OPENAI ({ai_provider.model})"
+    elif provider_name == "ANTHROPIC_AI":
+        ai_status = f"ANTHROPIC ({ai_provider.model})"
+    elif provider_name == "OLLAMA_LOCAL_AI":
+        ai_status = f"OLLAMA ({ai_provider.model})"
+    else:
+        ai_status = "LOCAL GROUNDED AI"
 
     return {
         "stats": {

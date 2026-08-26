@@ -154,9 +154,11 @@ async def generate_response(id: str):
 
     # Call AI Provider
     result = await generate_office_action_draft(context)
-    draft = result["draft"]
-    provider = result["provider"]
-    now_str = datetime.now().strftime("%d %b %Y, %H:%M")
+    draft = result.get("draft", "")
+    provider = result.get("provider", "GROUNDED_RULE_ENGINE")
+    model = result.get("model", "rule-grounded-v3")
+    grounding = result.get("grounding", {})
+    now_str = result.get("responseDraftedAt", datetime.now().strftime("%d %b %Y, %H:%M"))
 
     # Persist the draft to database
     with get_db_connection() as conn:
@@ -165,12 +167,15 @@ async def generate_response(id: str):
         UPDATE office_actions
         SET ai_response_draft = ?, ai_provider_used = ?, response_drafted_at = ?
         WHERE id = ?;
-        """, (draft, provider, now_str, oa["id"]))
+        """, (draft, f"{provider} ({model})", now_str, oa["id"]))
         conn.commit()
 
     return {
         "draft": draft,
+        "aiResponseDraft": draft,
         "provider": provider,
+        "model": model,
+        "grounding": grounding,
         "responseDraftedAt": now_str,
         "status": "SUCCESS"
     }

@@ -14,11 +14,11 @@ import {
   mockGenerateOfficeActionDraft,
   mockFetchSystemStatus,
   mockResetDemoDataset
-} from './mockService';
+} from './mockService.js';
 
-const ENV_API_URL = (import.meta.env.VITE_API_URL || '').trim();
-const IS_DEV = Boolean(import.meta.env.DEV);
-export const isProduction = Boolean(import.meta.env.PROD);
+const ENV_API_URL = typeof import.meta !== 'undefined' && import.meta.env ? (import.meta.env.VITE_API_URL || '').trim() : '';
+const IS_DEV = typeof import.meta !== 'undefined' && import.meta.env ? Boolean(import.meta.env.DEV) : false;
+export const isProduction = typeof import.meta !== 'undefined' && import.meta.env ? Boolean(import.meta.env.PROD) : false;
 
 const getBaseUrl = () => {
   if (ENV_API_URL) {
@@ -228,3 +228,48 @@ export async function resetDemoDataset() {
     return mockResetDemoDataset();
   }
 }
+
+export async function fetchPipelineStatus() {
+  if (!BASE_URL) {
+    return {
+      pipeline: 'PATENT+ Multi-Agent Portfolio Decision Pipeline',
+      topology: '5-Column Wave (Webhook -> Guardrails -> 3 Specialists -> Critic -> Consensus)',
+      activeProvider: 'GROUNDED_RULE_ENGINE',
+      activeModel: 'rule-grounded-v3',
+      operatingMode: 'STANDALONE_WORKSPACE',
+      status: 'OPERATIONAL'
+    };
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/pipeline/status`);
+    if (!res.ok) throw new Error(`Pipeline status failed: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    return {
+      pipeline: 'PATENT+ Multi-Agent Portfolio Decision Pipeline',
+      activeProvider: 'GROUNDED_RULE_ENGINE',
+      status: 'OPERATIONAL'
+    };
+  }
+}
+
+export async function executePipelineBatchAPI(patents, batchId) {
+  if (!BASE_URL) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/pipeline/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patents, batchId }),
+    });
+    if (!res.ok) throw new Error(`Batch pipeline execution failed: ${res.statusText} (${res.status})`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[PATENT+ Data Layer] Backend pipeline execution unavailable, using client-side runner:', err.message);
+    return null;
+  }
+}
+

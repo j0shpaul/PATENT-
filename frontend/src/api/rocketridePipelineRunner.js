@@ -2,6 +2,8 @@
 // PATENT+ — RocketRide Pipeline Execution & Multi-Agent Orchestration Engine
 // ==============================================================================
 
+import { executePipelineBatchAPI } from './client.js';
+
 export const PIPELINE_PROJECT_ID = '7f8b9e12-4c3a-4a89-9e52-bd6198f12a34';
 export const PIPELINE_NAME = 'PATENT+ Multi-Agent Portfolio Decision Pipeline';
 
@@ -280,6 +282,24 @@ export async function executeRocketRidePatentBatch(patentBatch, options = {}) {
   const { onProgress = null, batchId = `batch-${Date.now()}` } = options;
   const startTime = Date.now();
 
+  // Attempt real backend multi-agent pipeline first
+  try {
+    const backendResult = await executePipelineBatchAPI(patentBatch, batchId);
+    if (backendResult && backendResult.results) {
+      if (onProgress) {
+        onProgress({
+          stage: 'EVALUATED',
+          current: backendResult.results.length,
+          total: patentBatch.length,
+          itemStatus: 'COMPLETED'
+        });
+      }
+      return backendResult;
+    }
+  } catch (err) {
+    console.info('[PATENT+ Pipeline] Running local multi-agent execution pipeline.');
+  }
+
   const total = Array.isArray(patentBatch) ? patentBatch.length : 0;
   const quarantined = [];
   const processed = [];
@@ -409,10 +429,15 @@ export async function executeRocketRidePatentBatch(patentBatch, options = {}) {
     telemetry: {
       durationMs,
       averageLatencyPerPatentMs: processed.length > 0 ? Math.round(durationMs / processed.length) : 0,
-      totalPromptTokens,
-      totalCompletionTokens,
-      totalTokens: totalPromptTokens + totalCompletionTokens,
-      estimatedCostTotalUSD,
+      inferenceType: 'GROUNDED_RULE_ENGINE',
+      isRealModelInference: false,
+      actualPromptTokens: 0,
+      actualCompletionTokens: 0,
+      actualCostUSD: 0.0,
+      estimatedPromptTokens: totalPromptTokens,
+      estimatedCompletionTokens: totalCompletionTokens,
+      estimatedTokens: totalPromptTokens + totalCompletionTokens,
+      estimatedCostUSD: estimatedCostTotalUSD,
       avgCostPerPatentUSD,
       pipelineEngine: 'RocketRide Wave Multi-Agent Pipeline',
       status: 'SUCCESS'

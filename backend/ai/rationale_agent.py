@@ -1,34 +1,40 @@
 import logging
 from typing import Dict, Any
-from backend.config import settings
-from backend.ai.base import BaseAIProvider
-from backend.ai.anthropic_provider import AnthropicProvider
-from backend.ai.demo_provider import DemoLocalProvider
+from backend.ai.llm_engine import llm_engine
 
 logger = logging.getLogger("patent_plus.ai")
 
-def get_ai_provider() -> BaseAIProvider:
-    if settings.ANTHROPIC_API_KEY and len(settings.ANTHROPIC_API_KEY.strip()) > 5:
-        logger.info("Initializing AnthropicProvider (Claude API Key detected).")
-        return AnthropicProvider(api_key=settings.ANTHROPIC_API_KEY)
-    else:
-        logger.info("Initializing DemoLocalProvider (No Anthropic API Key provided, using deterministic grounded legal AI).")
-        return DemoLocalProvider()
+class AIProviderInfo:
+    def __init__(self, info: Dict[str, str]):
+        self._info = info
+
+    def get_provider_name(self) -> str:
+        return self._info.get("provider", "GROUNDED_RULE_ENGINE")
+
+    @property
+    def provider(self) -> str:
+        return self._info.get("provider", "GROUNDED_RULE_ENGINE")
+
+    @property
+    def model(self) -> str:
+        return self._info.get("model", "rule-grounded-v3")
+
+    @property
+    def mode(self) -> str:
+        return self._info.get("mode", "GROUNDED_EVIDENCE_ENGINE")
+
+    def __getitem__(self, item):
+        return self._info.get(item)
+
+def get_ai_provider() -> AIProviderInfo:
+    info = llm_engine.get_active_provider_info()
+    return AIProviderInfo(info)
 
 async def generate_patent_rationale(patent_data: Dict[str, Any]) -> Dict[str, Any]:
-    provider = get_ai_provider()
-    try:
-        return await provider.generate_business_rationale(patent_data)
-    except Exception as e:
-        logger.warning(f"Primary AI provider failed: {e}. Falling back to DemoLocalProvider.")
-        fallback = DemoLocalProvider()
-        return await fallback.generate_business_rationale(patent_data)
+    return await llm_engine.generate_business_rationale(patent_data)
 
 async def generate_office_action_draft(context: Dict[str, Any]) -> Dict[str, Any]:
-    provider = get_ai_provider()
-    try:
-        return await provider.generate_office_action_response(context)
-    except Exception as e:
-        logger.warning(f"Primary AI provider failed for office action: {e}. Falling back to DemoLocalProvider.")
-        fallback = DemoLocalProvider()
-        return await fallback.generate_office_action_response(context)
+    res = await llm_engine.generate_office_action_response(context)
+    return res.model_dump()
+
+

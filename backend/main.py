@@ -12,6 +12,7 @@ from backend.routes.patents import router as patents_router
 from backend.routes.decisions import router as decisions_router
 from backend.routes.office_actions import router as office_actions_router
 from backend.routes.system import router as system_router
+from backend.routes.pipeline import router as pipeline_router
 
 # Configure clean logging
 logging.basicConfig(
@@ -104,6 +105,7 @@ app.include_router(patents_router)
 app.include_router(decisions_router)
 app.include_router(office_actions_router)
 app.include_router(system_router)
+app.include_router(pipeline_router)
 
 @app.get("/")
 async def root():
